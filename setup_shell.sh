@@ -16,17 +16,19 @@ if $USE_MUJOCO_PY; then
     export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/.mujoco/mujoco200/bin
 fi
 
-# Try to import CUDA if we can, also add mujoco rendering backends. OK if unused.
-if [ -d "/usr/local/cuda-11.1" ]; then
-    export PATH=/usr/local/cuda-11.1/bin:$PATH
-    export MUJOCO_GL="egl" 
-elif [ -d "/usr/local/cuda-11.0" ]; then
-    export PATH=/usr/local/cuda-11.0/bin:$PATH
-    export MUJOCO_GL="egl" 
-elif [ -d "/usr/local/cuda-10.2" ]; then
-    export PATH=/usr/local/cuda-10.2/bin:$PATH
-    export MUJOCO_GL="egl" 
+# First check if we have a GPU available
+if [nvidia-smi]; then
+    if [ -d "/usr/local/cuda-11.1" ]; then
+        export PATH=/usr/local/cuda-11.1/bin:$PATH
+    elif [ -d "/usr/local/cuda-11.0" ]; then
+        export PATH=/usr/local/cuda-11.0/bin:$PATH
+    elif [ -d "/usr/local/cuda-10.2" ]; then
+        export PATH=/usr/local/cuda-10.2/bin:$PATH
+    else
+        echo "Warning: Could not find a CUDA version but GPU was found."
+    fi
+    export MUJOCO_GL="egl"
+    # Setup any GPU specific flags
 else
-    echo "Could not find a CUDA version, using CPU."
-    export MUJOCO_GL="osmesa"
-fi
+    echo "GPU was not found, assuming CPU setup."
+    export MUJOCO_GL="osmesa" # glfw doesn't support headless rendering

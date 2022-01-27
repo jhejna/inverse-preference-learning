@@ -1,3 +1,6 @@
+# Development files
+propogate_from_main.sh
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
