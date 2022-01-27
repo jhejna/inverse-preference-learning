@@ -13,7 +13,7 @@ SLURM_ARGS = {
     "nodes": {"type": int, "default": 1},
     "ntasks-per-node": {"type": int, "default": 1},
     "cpus": {"type": int, "required": True},
-    "gpus": {"type": str, "required": True},
+    "gpus": {"type": str, "required": False},
     "mem": {"type": str, "required": True},
     "output": {"type" : str, "default": SLURM_LOG_DEFAULT},
     "error": {"type" : str, "default": SLURM_LOG_DEFAULT},
