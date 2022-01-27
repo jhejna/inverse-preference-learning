@@ -32,3 +32,4 @@ if [nvidia-smi]; then
 else
     echo "GPU was not found, assuming CPU setup."
     export MUJOCO_GL="osmesa" # glfw doesn't support headless rendering
+fi
