@@ -2,7 +2,8 @@
 CONDA_PATH=~/miniconda3/bin/activate
 ENV_NAME=research
 REPO_PATH=path/to/your/repo
-USE_MUJOCO_PY=false
+USE_MUJOCO_PY=false # For using mujoco py
+WANDB_API_KEY=false # If you want to use wandb, set this to your API key.
 
 # Setup Conda
 source $CONDA_PATH

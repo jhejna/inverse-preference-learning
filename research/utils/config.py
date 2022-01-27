@@ -50,26 +50,23 @@ class Config(object):
         self.config['seed'] = None # Does nothing right now.
         self.config['train_kwargs'] = {}
 
-
-    def parse(self):
-        self.parsed = True
-        self.parse_helper(self.config)
-
-    def parse_helper(self, d):
+    @staticmethod
+    def _parse_helper(d):
         for k, v in d.items():
             if isinstance(v, list) and len(v) > 1 and v[0] == "import":
                 # parse the value to an import
                 d[k] = getattr(importlib.import_module(v[1]), v[2])
             elif isinstance(v, dict):
-                self.parse_helper(v)
+                Config.parse_helper(v)
+
+    def parse(self):
+        config = copy.deepcopy(self.config)
+        return Config._parse_helper(config)
         
     def update(self, d):
         self.config.update(d)
     
     def save(self, path):
-        if self.parsed:
-            print("[CONFIG ERROR] Attempting to saved parsed config. Must save before parsing to classes. ")
-            return
         if os.path.isdir(path):
             path = os.path.join(path, "config.yaml")
         with open(path, 'w') as f:
@@ -85,6 +82,22 @@ class Config(object):
         config.update(data)
         return config
 
+    @staticmethod
+    def _flatten_helper(flattened_config, value, prefix, separator="."):
+        if isinstance(value, dict) and all([isinstance(k, str) for k in value.keys()]):
+            # We have another nested configuration dictionary
+            for k in value.keys():
+                Config._flatten_helper(flattened_config, value[k], prefix + separator + k, separator=separator)
+        else:
+            # We do not have a config file, just return the regular value.
+            flattened_config[prefix[1:]] = value # Note that we remove the first prefix because it has a leading '.'
+    
+    def flatten(self, separator="."):
+        '''Returns a flattened version of the config where '.' separates nested values'''
+        flattened_config = {}
+        Config._flatten_helper(flattened_config, self.config, "", seperator=separator)
+        return flattened_config
+
     def __getitem__(self, key):
         return self.config[key]
 
@@ -98,7 +111,6 @@ class Config(object):
         return pprint.pformat(self.config, indent=4)
 
     def copy(self):
-        assert not self.parsed, "Cannot copy a parsed config"
         config = type(self)()
         config.config = copy.deepcopy(self.config)
         return config
