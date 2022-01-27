@@ -13,7 +13,7 @@ SLURM_ARGS = {
     "nodes": {"type": int, "default": 1},
     "ntasks-per-node": {"type": int, "default": 1},
     "cpus": {"type": int, "required": True},
-    "gpus": {"type": str, "required": False},
+    "gpus": {"type": str, "required": False, "default": None},
     "mem": {"type": str, "required": True},
     "output": {"type" : str, "default": SLURM_LOG_DEFAULT},
     "error": {"type" : str, "default": SLURM_LOG_DEFAULT},
@@ -41,7 +41,7 @@ def write_slurm_header(f, args):
 
     args.output = os.path.join(args.output, args.job_name + "_%A.out")
     args.error = os.path.join(args.error, args.job_name + "_%A.err")
-    args.gpus = "gpu:" + str(args.gpus)
+    args.gpus = "gpu:" + str(args.gpus) if args.gpu is not None else args.gpu
 
     NL = '\n'
     f.write("#!/bin/bash" + NL)
