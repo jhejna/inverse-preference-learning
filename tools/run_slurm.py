@@ -41,7 +41,7 @@ def write_slurm_header(f, args):
 
     args.output = os.path.join(args.output, args.job_name + "_%A.out")
     args.error = os.path.join(args.error, args.job_name + "_%A.err")
-    args.gpus = "gpu:" + str(args.gpus) if args.gpu is not None else args.gpu
+    args.gpus = "gpu:" + str(args.gpus) if args.gpus is not None else args.gpus
 
     NL = '\n'
     f.write("#!/bin/bash" + NL)
