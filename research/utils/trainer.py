@@ -6,6 +6,7 @@ import gym
 import research
 from . import schedules
 from .config import Config
+from .logger import Logger
 
 def get_env(env, env_kwargs, wrapper, wrapper_kwargs):
     # Try to get the environment
@@ -28,7 +29,7 @@ def get_env_from_config(config):
 
 def get_model(config, device="auto"):
     assert isinstance(config, Config)
-    config.parse() # Parse the config
+    config = config.parse() # Parse the config
     alg_class = vars(research.algs)[config['alg']]
     dataset_class = None if config['dataset'] is None else vars(research.datasets)[config['dataset']]
     network_class = None if config['network'] is None else vars(research.networks)[config['network']]
@@ -59,18 +60,33 @@ def train(config, path, device="auto"):
     print("[research] Training agent with config:")
     print(config)
     os.makedirs(path, exist_ok=False)
-    config.save(path)
+    print("[research] Model Directory:", path)
 
+    config.save(path)
     # save the git hash
     process = subprocess.Popen(['git', 'rev-parse', 'HEAD'], shell=False, stdout=subprocess.PIPE)
     git_head_hash = process.communicate()[0].strip()
     with open(os.path.join(path, 'git_hash.txt'), 'wb') as f:
         f.write(git_head_hash)
-    
+    # Setup the logger
+    writers = ['tb', 'csv']
+    wandb_api_key = os.getenv('WANDB_API_KEY')
+    if isinstance(wandb_api_key, str):
+        # We have wandb, get the project name
+        import wandb
+        project_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        wandb.init(project=os.path.basename(project_dir), name=os.path.basename(path), config=config.flatten(separator="-"))
+        writers.append('wandb')
+    logger = Logger(path=path, writers=writers)
+
     model = get_model(config, device=device)
     assert issubclass(type(model), research.algs.base.Algorithm)
     schedule = None if config['scheduler'] is None else vars(schedules)[config['scheduler']]
-    model.train(path,  schedule=schedule, schedule_kwargs=config['schedule_kwargs'], **config['train_kwargs'])
+
+    print("[research] Training a model with", sum(p.numel() for p in model.network.parameters() if p.requires_grad), "trainable parameters.")
+    
+    model.train(path, schedule=schedule, logger=logger, schedule_kwargs=config['schedule_kwargs'], **config['train_kwargs'])
+    
     return model
 
 def load(config, model_path, device="auto", strict=True):

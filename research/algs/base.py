@@ -157,11 +157,12 @@ class Algorithm(ABC):
             batch = utils.to_device(batch)
         return batch
 
-    def train(self, path, total_steps, schedule=None, schedule_kwargs={}, log_freq=100, eval_freq=1000, max_eval_steps=-1, workers=4, loss_metric="loss", eval_ep=-1, profile_freq=-1):
-        logger = Logger(path=path)
-        print("[research] Model Directory:", path)
-        print("[research] Training a model with", sum(p.numel() for p in self.network.parameters() if p.requires_grad), "trainable parameters.")
+    def train(self, path, total_steps, schedule=None, logger=None, schedule_kwargs={}, 
+                    log_freq=100, eval_freq=1000, max_eval_steps=-1, workers=4, loss_metric="loss", 
+                    eval_ep=-1, profile_freq=-1):
         
+        if logger is None:
+            logger = Logger(path=path, writers=['tb', 'csv']) # No wandb.
         # Construct the dataloaders.
         self.setup_datasets()
         shuffle = not issubclass(self.dataset_class, torch.utils.data.IterableDataset)
@@ -243,7 +244,7 @@ class Algorithm(ABC):
                     for name, scheduler in schedulers.items():
                         logger.record("lr/" + name, scheduler.get_last_lr()[0])
                     start_time = current_time
-                    logger.dump(step=self._steps)
+                    logger.dump(step=self.steps)
 
                 if self._steps % eval_freq == 0:
                     self.eval_mode()
@@ -287,7 +288,7 @@ class Algorithm(ABC):
                         best_validation_metric = current_validation_metric
 
                     # Eval Logger Dump to CSV
-                    logger.dump(step=self._steps, dump_csv=True) # Dump the eval metrics to CSV.
+                    logger.dump(step=self.steps) # Dump the eval metrics to CSV.
                     self.save(path, "final_model") # Also save the final model every eval period.
                     self.train_mode()
 
