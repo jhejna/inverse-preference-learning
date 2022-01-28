@@ -28,8 +28,8 @@ class TensorBoardWriter(Writer):
         self.writer = SummaryWriter(self.path)
 
     def dump(self, step):
-        for k in self.tb_values.keys():
-            self.writer.add_scalar(k, self.tb_values[k], step)
+        for k in self.values.keys():
+            self.writer.add_scalar(k, self.values[k], step)
         self.writer.flush()
         self.values.clear()
 
@@ -43,7 +43,7 @@ class CSVWriter(Writer):
         self.num_keys = 0
         
     def _reset_csv_handler(self):
-        if self._reset_csv_handler is not None:
+        if self._csv_file_handler is not None:
             self._csv_file_handler.close() # Close our fds
         self.csv_file_handler = open(os.path.join(self.path, "log.csv"), "wt")
         self.csv_logger = csv.DictWriter(self.csv_file_handler, fieldnames=list(self.values.keys()))
@@ -76,6 +76,7 @@ class WandBWriter(Writer):
         
     def dump(self, step):
         wandb.log(self.values, step=step)
+        self.values = {} # reset the values
 
 class Logger(object):
 

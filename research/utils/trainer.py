@@ -71,11 +71,14 @@ def train(config, path, device="auto"):
     # Setup the logger
     writers = ['tb', 'csv']
     wandb_api_key = os.getenv('WANDB_API_KEY')
-    if isinstance(wandb_api_key, str):
+    if wandb_api_key is not None and wandb_api_key != "":
         # We have wandb, get the project name
         import wandb
         project_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        wandb.init(project=os.path.basename(project_dir), name=os.path.basename(path), config=config.flatten(separator="-"))
+        wandb.init(project=os.path.basename(project_dir), 
+                   name=os.path.basename(path), 
+                   config=config.flatten(separator="-"),
+                   dir=os.path.join(os.path.dirname(project_dir), "wandb"))
         writers.append('wandb')
     logger = Logger(path=path, writers=writers)
 
