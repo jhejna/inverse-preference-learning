@@ -247,7 +247,7 @@ class Algorithm(ABC):
                     logger.dump(step=self.steps)
 
                 if self._steps % eval_freq == 0:
-                    self.eval()
+                    self.eval_mode()
                     current_validation_metric = None
                     if not validation_dataloader is None:
                         eval_steps = 0
@@ -290,7 +290,7 @@ class Algorithm(ABC):
                     # Eval Logger Dump to CSV
                     logger.dump(step=self.steps) # Dump the eval metrics to CSV.
                     self.save(path, "final_model") # Also save the final model every eval period.
-                    self.train()
+                    self.train_mode()
 
                 # Profiling
                 if profile_freq > 0 and self._steps % profile_freq == 0:

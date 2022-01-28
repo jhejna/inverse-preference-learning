@@ -57,11 +57,12 @@ class Config(object):
                 # parse the value to an import
                 d[k] = getattr(importlib.import_module(v[1]), v[2])
             elif isinstance(v, dict):
-                Config.parse_helper(v)
+                Config._parse_helper(v)
 
     def parse(self):
-        config = copy.deepcopy(self.config)
-        return Config._parse_helper(config)
+        config = self.copy()
+        Config._parse_helper(config.config)
+        return config
         
     def update(self, d):
         self.config.update(d)
@@ -95,7 +96,7 @@ class Config(object):
     def flatten(self, separator="."):
         '''Returns a flattened version of the config where '.' separates nested values'''
         flattened_config = {}
-        Config._flatten_helper(flattened_config, self.config, "", seperator=separator)
+        Config._flatten_helper(flattened_config, self.config, "", separator=separator)
         return flattened_config
 
     def __getitem__(self, key):

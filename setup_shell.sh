@@ -3,14 +3,17 @@ CONDA_PATH=~/miniconda3/bin/activate
 ENV_NAME=research
 REPO_PATH=path/to/your/repo
 USE_MUJOCO_PY=false # For using mujoco py
-WANDB_API_KEY=false # If you want to use wandb, set this to your API key.
+WANDB_API_KEY="" # If you want to use wandb, set this to your API key.
 
 # Setup Conda
 source $CONDA_PATH
 conda activate $ENV_NAME 
 cd $REPO_PATH
-
 unset DISPLAY # Make sure display is not set or it will prevent scripts from running in headless mode.
+
+if $WANDB_API_KEY; then
+    export WANDB_API_KEY=$WANDB_API_KEY
+fi
 
 if $USE_MUJOCO_PY; then
     echo "Using mujoco_py"
