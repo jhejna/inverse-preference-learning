@@ -73,8 +73,15 @@ class WandBWriter(Writer):
 
     def __init__(self, path):
         super().__init__(path)
+        self.num_keys = 0
         
     def dump(self, step):
+        # Only log if we have all of the values -- this makes it more similar to the csv
+        # This is done to prevent syncing to WandB constantly.
+        if len(self.values) < self.num_keys:
+            return
+        elif len(self.values) > self.num_keys:
+            self.num_keys = len(self.values)
         wandb.log(self.values, step=step)
         self.values = {} # reset the values
 
