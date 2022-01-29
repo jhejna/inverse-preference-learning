@@ -33,7 +33,7 @@ while num_steps < args.num_steps:
     # Determine the discount factor.
     if 'discount' in info:
         discount = info['discount']
-    elif hasattr(env, "_max_episode_stes") and episode_length == env._max_episode_steps:
+    elif hasattr(env, "_max_episode_steps") and episode_length == env._max_episode_steps:
         discount = 1.0
     else:
         discount = 1 - float(done)
