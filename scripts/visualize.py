@@ -15,6 +15,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     model = load_from_path(args.checkpoint, device=args.device, strict=True)
+    model.eval_model() # Place the model in evaluation mode
     env = model.env
 
     frames = []
