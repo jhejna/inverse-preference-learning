@@ -154,7 +154,7 @@ class Algorithm(ABC):
             batch = self.processor(batch)
         else:
             batch = self.processor(batch)
-            batch = utils.to_device(batch)
+            batch = utils.to_device(batch, self.device)
         return batch
 
     def train(self, path, total_steps, schedule=None, logger=None, schedule_kwargs={}, 

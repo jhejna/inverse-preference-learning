@@ -2,7 +2,8 @@ import torch
 import numpy as np
 import collections
 
-LAST_METRICS = {'success', 'is_success'}
+MAX_METRICS = {'success', 'is_success'}
+LAST_METRICS = {}
 MEAN_METRICS = {}
 
 def eval_policy(env, model, num_ep):
@@ -31,7 +32,9 @@ def eval_policy(env, model, num_ep):
         ep_rewards.append(ep_reward)
         ep_lengths.append(ep_length)
         for k, v in ep_metric.items():
-            if k in LAST_METRICS: # Append the last value
+            if k in MAX_METRICS:
+                ep_metrics[k].append(np.max(v))
+            elif k in LAST_METRICS: # Append the last value
                 ep_metrics[k].append(v[-1])
             elif k in MEAN_METRICS:
                 ep_metrics[k].append(np.mean(v))
