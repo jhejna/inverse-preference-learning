@@ -84,6 +84,12 @@ def train(config, path, device="auto"):
 
     model = get_model(config, device=device)
     assert issubclass(type(model), research.algs.base.Algorithm)
+
+    if config['seed'] is not None:
+        # Seed the model if provided.
+        model.seed(config['seed'])
+
+    # Fetch the scheduler
     schedule = None if config['scheduler'] is None else vars(schedules)[config['scheduler']]
 
     print("[research] Training a model with", sum(p.numel() for p in model.network.parameters() if p.requires_grad), "trainable parameters.")

@@ -13,9 +13,12 @@ repo_path = os.path.dirname(os.path.dirname(__file__))
 STORAGE_ROOT = os.path.dirname(repo_path)
 ENV_SETUP_SCRIPT = os.path.join(repo_path, "setup_shell.sh")
 TMP_DIR = os.path.join(STORAGE_ROOT, "tmp")
-FOLDER_KEYS = []
 DEFAULT_ENTRY_POINT = "scripts/train.py"
 DEFAULT_REQUIRED_ARGS = ["path", "config"]
+
+# Specifies which config values will split experiments into folders
+# by default this is just the environment.
+FOLDER_KEYS = ["env"]
 
 def get_parser():
     parser = argparse.ArgumentParser()
@@ -227,10 +230,12 @@ class Experiment(dict):
         for i, variant in enumerate(variants):
             config = self.base_config.copy()
             name = ""
+            seed = None
             remove_trailing_underscore = False
             for k, v in variant.items():
                 config_path = k.split('.')
                 config_dict = config
+                # Recursively update the current config until we find the value.
                 while len(config_path) > 1:
                     if not config_path[0] in config_dict:
                         raise ValueError("Experiment specified key not in config: " + str(k))
@@ -238,10 +243,13 @@ class Experiment(dict):
                     config_path.pop(0)
                 if not config_path[0] in config_dict:
                         raise ValueError("Experiment specified key not in config: " + str(k))
+                # Finally set the value
                 config_dict[config_path[0]] = v
                 
                 if k in FOLDER_KEYS:
                     name = os.path.join(v, name)
+                elif k == "seed" and len(self["seed"]) > 1: # More than one seed specified.
+                    seed = v # Note that seed is not added to the name.
                 elif len(self[k]) > 1:
                     # Add it to the path name if it is different for each run.
                     if isinstance(v, str):
@@ -259,6 +267,8 @@ class Experiment(dict):
             if remove_trailing_underscore:
                 name = name[:-1]
             name = os.path.join(self.name, name)
+            if seed is not None:
+                name = os.path.join(name, "seed-" + str(seed))
             if not os.path.exists(TMP_DIR):
                 os.mkdir(TMP_DIR)
             _, config_path = tempfile.mkstemp(text=True, prefix='config', suffix='.json', dir=TMP_DIR)
