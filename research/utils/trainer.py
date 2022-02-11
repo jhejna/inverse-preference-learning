@@ -96,6 +96,8 @@ def train(config, path, device="auto"):
     
     model.train(path, schedule=schedule, logger=logger, schedule_kwargs=config['schedule_kwargs'], **config['train_kwargs'])
     
+    logger.close() # Close the logger and flush everything
+    print("[research] finished training for", model.steps, "steps.")
     return model
 
 def load(config, model_path, device="auto", strict=True):
