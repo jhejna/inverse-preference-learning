@@ -134,7 +134,7 @@ class Algorithm(ABC):
                 param_group['lr'] = initial_lr
 
     def seed(self, seed):
-        torch.seed(seed)
+        torch.manual_seed(seed)
         np.random.seed(seed)
         random.seed(seed)
         if self.env is not None:
