@@ -133,6 +133,15 @@ class Algorithm(ABC):
             for param_group in self.optim.param_groups:
                 param_group['lr'] = initial_lr
 
+    def seed(self, seed):
+        torch.seed(seed)
+        np.random.seed(seed)
+        random.seed(seed)
+        if self.env is not None:
+            self.env.seed(seed)
+        if self.eval_env is not None:
+            self.eval_env.seed(seed)
+
     @property
     def steps(self):
         return self._steps
