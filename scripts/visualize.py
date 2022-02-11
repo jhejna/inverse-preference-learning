@@ -17,16 +17,23 @@ if __name__ == "__main__":
     model = load_from_path(args.checkpoint, device=args.device, strict=True)
     model.eval_mode() # Place the model in evaluation mode
     env = model.env
-
+    
     frames = []
     for ep in range(args.num_ep):
         obs = env.reset()
         done = False
+        ep_reward, ep_length = 0, 0
         frames.append(env.render(mode='rgb_array', width=args.width, height=args.height))
         while not done:
             action = model.predict(obs)
-            obs, reward, done, _ = env.step(action)
+            obs, reward, done, info = env.step(action)
             frames.append(env.render(mode='rgb_array', width=args.width, height=args.height))
+            ep_reward += reward
+            ep_length += 1
+            if 'success' in info or 'is_success' in info:
+                print("[research] Episode success, terminating early.")
+                done = True
+        print("Finished Episode. Reward:", ep_reward, "Length:", ep_length)
 
     # Cut the frames 
     print("Saving a gif of", len(frames), "Frames")
