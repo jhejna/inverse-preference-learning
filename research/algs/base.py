@@ -32,7 +32,7 @@ def _worker_init_fn(worker_id):
     np.random.seed(seed)
     random.seed(seed)
 
-MAX_VALID_METRICS = {"reward", "accuracy"}
+MAX_VALID_METRICS = {"reward", "accuracy", "success", "is_success"}
 
 class Algorithm(ABC):
 
@@ -297,7 +297,7 @@ class Algorithm(ABC):
                         best_validation_metric = current_validation_metric
 
                     # Eval Logger Dump to CSV
-                    logger.dump(step=self.steps) # Dump the eval metrics to CSV.
+                    logger.dump(step=self.steps, eval=True) # Mark True on the eval flag
                     self.save(path, "final_model") # Also save the final model every eval period.
                     self.train_mode()
 

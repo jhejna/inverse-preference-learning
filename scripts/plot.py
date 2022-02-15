@@ -10,8 +10,8 @@ LOG_FILE_NAME = "log.csv"
 def moving_avg(x, y, window_size=1):
     if window_size == 1:
         return x, y
-    moving_avg_x = np.convolve(x, np.ones(window_size), 'valid') / window_size
-    return moving_avg_x, y[-len(moving_avg_x):]
+    moving_avg_y = np.convolve(y, np.ones(window_size) / window_size, 'valid') 
+    return x[-len(moving_avg_y):], moving_avg_y
 
 def plot_run(paths, name, x_key="steps", y_keys=["eval/loss"], window_size=1, max_x_value=None):
     for path in paths:
@@ -21,9 +21,10 @@ def plot_run(paths, name, x_key="steps", y_keys=["eval/loss"], window_size=1, ma
         for path in paths:
             df = pd.read_csv(os.path.join(path, LOG_FILE_NAME))
             x, y = moving_avg(df[x_key], df[y_key], window_size=window_size)
+            assert len(x) == len(y)
             if max_x_value is not None:
+                y = y[x <= max_x_value] # need to set y value first
                 x = x[x <= max_x_value]
-                y = y[x <= max_x_value]
             xs.append(x)
             ys.append(y)
         xs = np.concatenate(xs, axis=0)
