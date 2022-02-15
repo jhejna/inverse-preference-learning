@@ -47,7 +47,7 @@ if __name__ == "__main__":
     parser.add_argument("--x-label", "-xl", type=str, default=None, help="X label to display on the plot")
     parser.add_argument("--y", "-y", type=str, nargs='+', default=["eval/loss"], help="Y value(s) to plot")
     parser.add_argument("--y-label", "-yl", type=str, default=None, help="Y label to display on the plot")
-    parser.add_argument("--fig-size", "-f", nargs=2, type=int, default=(8, 6))
+    parser.add_argument("--fig-size", "-f", nargs=2, type=int, default=(6, 4))
     args = parser.parse_args()
 
     paths = args.path
