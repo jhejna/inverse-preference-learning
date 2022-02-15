@@ -77,11 +77,16 @@ if __name__ == "__main__":
 
     # Call python subprocess to launch the slurm jobs.
     num_slurm_calls = len(jobs) // args.jobs_per_instance
+    remainder_jobs = len(jobs) - num_slurm_calls * args.jobs_per_instance
+    jobs_per_call = [args.jobs_per_instance for _ in range(num_slurm_calls)]
+    for i in range(remainder_jobs):
+        jobs_per_call[i] += 1 # Add the remainder jobs to spread them out as evenly as possible.
+    assert sum(jobs_per_call) == len(jobs)
+    job_index = 0
     procs = []
-    for i in range(num_slurm_calls):
-        current_jobs = jobs[i*args.jobs_per_instance: (i+1)*args.jobs_per_instance]
-        if i == num_slurm_calls - 1:
-            current_jobs = jobs[i*args.jobs_per_instance:] # Get all the remaining jobs
+    for num_jobs in jobs_per_call:
+        current_jobs = jobs[job_index:job_index + num_jobs]
+        job_index += num_jobs
         
         _, slurm_file = tempfile.mkstemp(text=True, prefix='job', suffix='.sh')
         print("Launching job with slurm configuration:", slurm_file)
