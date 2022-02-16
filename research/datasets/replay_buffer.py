@@ -33,7 +33,8 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
     '''
     def __init__(self, observation_space, action_space, 
                        discount=0.99, nstep=1, preload_path=None,
-                       capacity=100000, fetch_every=1000, cleanup=True, batch_size=None):
+                       capacity=100000, fetch_every=1000, cleanup=True,
+                       batch_size=None, sample_multiplier=1.5):
         # Observation and action space values
         self.observation_space = observation_space
         self.action_space = action_space
@@ -41,12 +42,13 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         # Queuing values
         self.discount = discount
         self.nstep = nstep
-        self.batch_size = batch_size
+        self.batch_size = 1 if batch_size is None else batch_size
 
         # Data storage values
         self.capacity = capacity
         self.cleanup = cleanup # whether or not to remove loaded episodes from disk
         self.fetch_every = fetch_every
+        self.sample_multiplier = sample_multiplier
 
         # worker values to be shared across processes.
         self.preload_path = preload_path
@@ -247,25 +249,29 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
                 return self._get_one_idx() 
         return idx
 
-    def _get_many_idxs(self):
-        idxs = np.random.randint(0, self._size - self.nstep, size=int(1.5*self.batch_size)) + 1
+    def _get_many_idxs(self, batch_size):
+        idxs = np.random.randint(0, self._size - self.nstep, size=int(self.sample_multiplier*batch_size)) + 1
         valid = np.ones(idxs.shape, dtype=np.bool_)
         # Mark all the invalid transitions
         for i in range(self.nstep):
             dones = self._done_buffer[idxs + i - 1]  # We cannot come from a "done" observation, subtract one
             valid[dones == True] = False
         valid_idxs = idxs[valid == True] # grab only the idxs that are still valid.
-        return valid_idxs[:self.batch_size] # Return the first [:batch_size] of them.
+        if len(valid_idxs) < batch_size:
+            print("[research ReplayBuffer] Buffer Sampler did not recieve batch_size number of valid indices. Consider increasing sample_multiplier.")
+            return self._get_many_idxs(batch_size)
+        return valid_idxs[:batch_size] # Return the first [:batch_size] of them.
 
-    def _sample(self):
+    def _sample(self, batch_size=None):
         if self._size <= self.nstep + 2:
             return {}
         # NOTE: one small bug is that we won't end up being able to sample segments that span
         # Across the barrier. We lose 1 to self.nstep transitions.
-        if self.batch_size is None:
+        batch_size = self.batch_size if batch_size is None else batch_size
+        if batch_size > 1:
             idxs = self._get_one_idx()
         else:
-            idxs = self._get_many_idxs()
+            idxs = self._get_many_idxs(batch_size)
 
         obs_idxs = idxs - 1
         next_obs_idxs = idxs + self.nstep - 1
