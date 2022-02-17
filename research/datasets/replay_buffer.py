@@ -150,11 +150,12 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         else:
             self.current_ep[key].append(value)
 
-    def add(self, obs, action=None, reward=None, done=None, discount=None):
+    def add(self, obs, action=None, reward=None, done=None, discount=None, next_obs=None):
         # Make sure that if we are adding the first transition, it is consistent
         assert (action is None) == (reward is None) == (done is None) == (discount is None)
         if action is None:
             # construct dummy transition
+            # This won't be sampled because we base everything off of the next_obs index
             action = self.action_space.sample()
             reward = 0.0
             done = False
@@ -163,9 +164,20 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         # Case 1: Not Parallel and Cleanup: just add to buffer
         if not self.is_parallel:
             # Deep copy to make sure we don't mess up references.
-            self._add_to_buffer(copy.deepcopy(obs), copy.deepcopy(action), reward, done, discount)
-            if self.cleanup:
-                return # Exit if we clean up and don't save the buffer.
+            if next_obs is None:
+                self._add_to_buffer(copy.deepcopy(obs), copy.deepcopy(action), reward, done, discount)
+                if self.cleanup:
+                    return # Exit if we clean up and don't save the buffer.
+            else:
+                assert action is not None, "When using next obs must provide intermediate action, reward, done, discount"
+                assert self.nstep == 1, "Adding individual transitions only supported with nstep = 1."
+                # Add a single transition to the buffer. 
+                # We have to do two calls, one for the initial observation, and one for the next one
+                self._add_to_buffer(copy.deepcopy(obs), copy.deepcopy(action), reward, done, discount)
+                self._add_to_buffer(copy.deepcopy(obs), copy.deepcopy(action), reward, True, discount)
+                return # We do not add to episode streams when we add individual transitions.
+
+        assert next_obs is None, "Must add via episode streams in parallel mode."
 
         # If we don't have a current episode list, construct one.
         if not hasattr(self, "current_ep"):
@@ -262,7 +274,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
             return self._get_many_idxs(batch_size)
         return valid_idxs[:batch_size] # Return the first [:batch_size] of them.
 
-    def _sample(self, batch_size=None):
+    def sample(self, batch_size=None):
         if self._size <= self.nstep + 2:
             return {}
         # NOTE: one small bug is that we won't end up being able to sample segments that span
@@ -310,7 +322,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
             self._load(self.preload_path, cleanup=False) # Load any initial episodes
 
         while True:
-            yield self._sample()
+            yield self.sample()
             if self.is_parallel:
                 self._samples_since_last_load += 1
                 if self._samples_since_last_load >= self.fetch_every:
