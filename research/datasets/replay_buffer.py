@@ -305,10 +305,9 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         # Across the barrier. We lose 1 to self.nstep transitions.
         batch_size = self.batch_size if batch_size is None else batch_size
         if batch_size > 1:
-            idxs = self._get_one_idx()
-        else:
             idxs = self._get_many_idxs(batch_size)
-
+        else:
+            idxs = self._get_one_idx()
         obs_idxs = idxs - 1
         next_obs_idxs = idxs + self.nstep - 1
 
