@@ -87,7 +87,24 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         except:
             pass
 
-    def _setup_buffers(self):
+    def setup(self):
+        if hasattr(self, "_setup"):
+            assert self._setup, "If we have the _setup attribute the buffer should be setup"
+            assert not self.is_parallel, "Recalled setup on parallel replay buffer! This means __iter__ was called twice."
+            return # We are in serial mode, we can create another iterator
+        else:        
+            self.setup = True
+        
+        worker_info = torch.utils.data.get_worker_info()
+        if worker_info is None:
+            # Be EXTREMELEY careful here to not modify any values that are in the parent object.
+            # This is only called if we are in the serial case!
+            self.is_serial = True
+        # Setup values to be used by this worker in setup
+        self._num_workers = worker_info.num_workers if worker_info is not None else 1
+        self._worker_id = worker_info.id if worker_info is not None else 0
+
+        # Setup the buffers
         self._idx = 0
         self._size = 0
         self._capacity = self.capacity // self._num_workers
@@ -105,9 +122,16 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         self._obs_buffer = construct_buffer_helper(self.observation_space)
         self._action_buffer = construct_buffer_helper(self.action_space)
         self._reward_buffer = np.empty((self._capacity,), dtype=np.float32)
-        # TODO: Determine best data types for these buffers.
         self._discount_buffer = np.empty((self._capacity,), dtype=np.float32)
         self._done_buffer = np.empty((self._capacity,), dtype=np.bool_)
+
+        # setup episode tracker to track loaded episodes
+        self._episode_filenames = set()
+        self._samples_since_last_load = 0
+
+        # Preload the data if needed
+        if self.preload_path is not None:
+            self._load(self.preload_path, cleanup=False) # Load any initial episodes        
 
     def _add_to_buffer(self, obs, action, reward, done, discount):
         # Can add in batches or serially.
@@ -174,7 +198,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
                 # Add a single transition to the buffer. 
                 # We have to do two calls, one for the initial observation, and one for the next one
                 self._add_to_buffer(copy.deepcopy(obs), copy.deepcopy(action), reward, done, discount)
-                self._add_to_buffer(copy.deepcopy(obs), copy.deepcopy(action), reward, True, discount)
+                self._add_to_buffer(copy.deepcopy(next_obs), copy.deepcopy(action), reward, True, discount)
                 return # We do not add to episode streams when we add individual transitions.
 
         assert next_obs is None, "Must add via episode streams in parallel mode."
@@ -300,27 +324,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         return dict(obs=obs, action=action, next_obs=next_obs, reward=reward, discount=discount)
 
     def __iter__(self):
-        assert not hasattr(self, "setup"), "Attempted to re-call iter on ReplayBuffer. Should only be called once!"
-        self.setup = True
-        worker_info = torch.utils.data.get_worker_info()
-        if worker_info is None:
-            # Be EXTREMELEY careful here to not modify any values that are in the parent object.
-            # This is only called if we are in the serial case!
-            self.is_serial = True
-
-        # Setup values to be used by this worker in setup
-        self._num_workers = worker_info.num_workers if worker_info is not None else 1
-        self._worker_id = worker_info.id if worker_info is not None else 0
-
-        self._setup_buffers()
-
-        # setup episode tracker to track loaded episodes
-        self._episode_filenames = set()
-        self._samples_since_last_load = 0
-
-        if self.preload_path is not None:
-            self._load(self.preload_path, cleanup=False) # Load any initial episodes
-
+        self.setup()
         while True:
             yield self.sample()
             if self.is_parallel:
