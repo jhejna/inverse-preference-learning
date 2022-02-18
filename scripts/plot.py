@@ -54,13 +54,13 @@ if __name__ == "__main__":
     # Check to see if we should auto-expand the path.
     # Do this only if the number of paths specified is one and each sub-path is a directory
     if len(paths) == 1 and all([os.path.isdir(os.path.join(paths[0], d)) for d in os.listdir(paths[0])]):
-        paths = [os.path.join(paths[0], d) for d in os.listdir(paths[0])]
+        paths = sorted([os.path.join(paths[0], d) for d in os.listdir(paths[0])])
     # Now create the labels
     labels = args.legend
     if labels is None:
         labels = [os.path.basename(path[:-1] if path.endswith('/') else path) for path in paths]
     # Sort the paths alphabetically by the labels
-    paths, labels = zip(*sorted(zip(paths, labels), key=lambda x: x[1])) # Alphabetically sort by label
+    paths, labels = zip(*sorted(zip(paths, labels), key=lambda x: x[0])) # Alphabetically sort by filename
     
     for path, label in zip(paths, labels):
         if LOG_FILE_NAME not in os.listdir(path):
