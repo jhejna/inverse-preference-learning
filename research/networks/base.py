@@ -7,23 +7,38 @@ class ActorCriticPolicy(nn.Module):
                        actor_class, critic_class, encoder_class=None, 
                        actor_kwargs={}, critic_kwargs={}, encoder_kwargs={}, **kwargs) -> None:
         super().__init__()
-        encoder_class = vars(research.networks)[encoder_class] if isinstance(encoder_class, str) else encoder_class
-        actor_class = vars(research.networks)[actor_class] if isinstance(actor_class, str) else actor_class
-        critic_class = vars(research.networks)[critic_class] if isinstance(critic_class, str) else critic_class
+        # Update all dictionaries with the generic kwargs
+        self.action_space = action_space
+        self.observation_space = observation_space
 
         encoder_kwargs.update(kwargs)
         actor_kwargs.update(kwargs)
         critic_kwargs.update(kwargs)
+        self.actor_class, self.actor_kwargs = actor_class, actor_kwargs
+        self.critic_class, critic_kwargs = critic_class, critic_kwargs
+        self.encoder_class, encoder_kwargs = encoder_class, encoder_kwargs
 
+        self.reset_encoder()
+        self.reset_actor()
+        self.reset_critic()
+
+    def reset_encoder(self):
+        encoder_class = vars(research.networks)[self.encoder_class] if isinstance(self.encoder_class, str) else self.encoder_class
         if encoder_class is not None:
-            self._encoder = encoder_class(observation_space, action_space, **encoder_kwargs)
+            self._encoder = encoder_class(self.observation_space, self.action_space, **self.encoder_kwargs)
             # Modify the observation space
             if hasattr(self._encoder, "output_space"):
                 observation_space = self._encoder.output_space
         else:
             self._encoder = nn.Identity()
-        self._actor = actor_class(observation_space, action_space, **actor_kwargs)
-        self._critic = critic_class(observation_space, action_space, **critic_kwargs)
+
+    def reset_actor(self):
+        actor_class = vars(research.networks)[self.actor_class] if isinstance(self.actor_class, str) else self.actor_class
+        self._actor = actor_class(self.observation_space, self.action_space, **self.actor_kwargs)
+
+    def reset_critic(self):
+        critic_class = vars(research.networks)[self.critic_class] if isinstance(self.critic_class, str) else self.critic_class
+        self._critic = critic_class(self.observation_space, self.action_space, **self.critic_kwargs)
 
     @property
     def actor(self):
