@@ -30,7 +30,7 @@ if __name__ == "__main__":
             frames.append(env.render(mode='rgb_array', width=args.width, height=args.height))
             ep_reward += reward
             ep_length += 1
-            if 'success' in info or 'is_success' in info:
+            if ('success' in info and info['success']) or ('is_success' in info and info['is_success']):
                 print("[research] Episode success, terminating early.")
                 done = True
         print("Finished Episode. Reward:", ep_reward, "Length:", ep_length)
