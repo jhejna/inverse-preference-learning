@@ -20,6 +20,8 @@ def plot_run(paths, name, x_key="steps", y_keys=["eval/loss"], window_size=1, ma
         xs, ys = [], []
         for path in paths:
             df = pd.read_csv(os.path.join(path, LOG_FILE_NAME))
+            if y_key not in df:
+                print("[research] WARNING: y_key was not in run, skipping plot", path)
             x, y = moving_avg(df[x_key], df[y_key], window_size=window_size)
             assert len(x) == len(y)
             if max_x_value is not None:
