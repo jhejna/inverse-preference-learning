@@ -271,7 +271,7 @@ class Experiment(dict):
                 name = os.path.join(name, "seed-" + str(seed))
             if not os.path.exists(TMP_DIR):
                 os.mkdir(TMP_DIR)
-            _, config_path = tempfile.mkstemp(text=True, prefix='config', suffix='.json', dir=TMP_DIR)
+            _, config_path = tempfile.mkstemp(text=True, prefix='config_', suffix='.json', dir=TMP_DIR)
             print("Variant", i+1)
             print(config)
             config.save(config_path)

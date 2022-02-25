@@ -88,7 +88,7 @@ if __name__ == "__main__":
         current_jobs = jobs[job_index:job_index + num_jobs]
         job_index += num_jobs
         
-        _, slurm_file = tempfile.mkstemp(text=True, prefix='job', suffix='.sh')
+        _, slurm_file = tempfile.mkstemp(text=True, prefix='job_', suffix='.sh')
         print("Launching job with slurm configuration:", slurm_file)
 
         with open(slurm_file, 'w+') as f:
