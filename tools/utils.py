@@ -246,7 +246,7 @@ class Experiment(dict):
                 # Finally set the value
                 config_dict[config_path[0]] = v
                 
-                if k in FOLDER_KEYS:
+                if k in FOLDER_KEYS and len(self[k]) > 1:
                     name = os.path.join(v, name)
                 elif k == "seed" and len(self["seed"]) > 1: # More than one seed specified.
                     seed = v # Note that seed is not added to the name.
