@@ -53,7 +53,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         # worker values to be shared across processes.
         self.preload_path = preload_path
         self.num_episodes = 0
-        self.storage_path = tempfile.mkdtemp()
+        self.storage_path = tempfile.mkdtemp(prefix="replay_buffer_")
         print("[research] Replay Buffer Storage Path", self.storage_path)
 
     @property
