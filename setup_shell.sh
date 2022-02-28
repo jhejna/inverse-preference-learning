@@ -21,7 +21,7 @@ if $USE_MUJOCO_PY; then
 fi
 
 # First check if we have a GPU available
-if [nvidia-smi]; then
+if nvidia-smi | grep "CUDA Version"; then
     if [ -d "/usr/local/cuda-11.1" ]; then
         export PATH=/usr/local/cuda-11.1/bin:$PATH
     elif [ -d "/usr/local/cuda-11.0" ]; then
