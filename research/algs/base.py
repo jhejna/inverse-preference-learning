@@ -122,12 +122,13 @@ class Algorithm(ABC):
         print("[research] loading checkpoint:", checkpoint)
         checkpoint = torch.load(checkpoint, map_location=self.device)
         self.network.load_state_dict(checkpoint['network'], strict=strict)
-        
-        if strict:
-            # Only load the optimizer state dict if we are being strict.
-            for k, v in self.optim.items():
+
+        for k, v in self.optim.items():
+            if strict and k not in checkpoint['optim']:
+                raise ValueError("Strict mode was enabled, but couldn't find optimizer key")
+            elif k in checkpoint['opitm']:
                 self.optim[k].load_state_dict(checkpoint['optim'][k])
-        
+                
         # make sure that we reset the learning rate in case we decide to not use scheduling for finetuning.
         if not initial_lr is None:
             for param_group in self.optim.param_groups:
