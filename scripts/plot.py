@@ -43,7 +43,6 @@ if __name__ == "__main__":
     parser.add_argument("--legend", "-l", nargs='+', type=str, required=False, help="Names of each run to display in the legend")
     parser.add_argument("--title", "-t", type=str, required=False, help="Plot title")
     parser.add_argument("--window", "-w", type=int, default=1, help="Moving window averaging parameter.")
-    parser.add_argument("--timesteps", "-s", type=int, required=False, help="Max value of x axis to plot")
     parser.add_argument("--x", "-x", type=str, default="step", help="X value to plot")
     parser.add_argument("--max-x", "-m", type=int, default=None, help="Max x value to plot")
     parser.add_argument("--x-label", "-xl", type=str, default=None, help="X label to display on the plot")
