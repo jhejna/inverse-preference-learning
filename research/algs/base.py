@@ -126,8 +126,16 @@ class Algorithm(ABC):
         for k, v in self.optim.items():
             if strict and k not in checkpoint['optim']:
                 raise ValueError("Strict mode was enabled, but couldn't find optimizer key")
-            elif k in checkpoint['opitm']:
+            elif k not in checkpoint['optim']:
+                continue
+
+            try:
                 self.optim[k].load_state_dict(checkpoint['optim'][k])
+            except ValueError as e:
+                if strict:
+                    raise e
+                else:
+                    continue
                 
         # make sure that we reset the learning rate in case we decide to not use scheduling for finetuning.
         if not initial_lr is None:
