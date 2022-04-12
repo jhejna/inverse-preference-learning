@@ -28,14 +28,16 @@ class DRQV2Encoder(nn.Module):
         else:
             raise ValueError("Invalid observation space for DRQV2 Image encoder.")
         assert h == w == 84, "Incorrect spatial dimensions for DRQV2 Encoder"
-        # For the future modules
-        self.output_space = gym.spaces.Box(shape=(32*35*35,), low=-np.inf, high=np.inf, dtype=np.float32)
         self.convnet = nn.Sequential(nn.Conv2d(channels, 32, 3, stride=2),
                                      nn.ReLU(), nn.Conv2d(32, 32, 3, stride=1),
                                      nn.ReLU(), nn.Conv2d(32, 32, 3, stride=1),
                                      nn.ReLU(), nn.Conv2d(32, 32, 3, stride=1),
                                      nn.ReLU())
         self.apply(weight_init)
+
+    @property
+    def output_space(self):
+        return gym.spaces.Box(shape=(32*35*35,), low=-np.inf, high=np.inf, dtype=np.float32)
 
     def forward(self, obs):
         if len(obs.shape) == 5:
