@@ -156,6 +156,10 @@ class Algorithm(ABC):
         return self._steps
 
     @property
+    def epochs(self):
+        return self._epochs
+
+    @property
     def total_steps(self):
         if hasattr(self, "_total_steps"):
             return self._total_steps
@@ -209,7 +213,7 @@ class Algorithm(ABC):
         # Setup model metrics.
         self._steps = 0
         self._total_steps = total_steps
-        epochs = 0
+        self._epochs = 0
         loss_lists = defaultdict(list)
         best_validation_metric = -1*float('inf') if loss_metric in MAX_VALID_METRICS else float('inf')
         
@@ -256,7 +260,7 @@ class Algorithm(ABC):
                 if self._steps % log_freq == 0:
                     current_time = time.time()
                     log_from_dict(logger, loss_lists, "train")
-                    logger.record("time/epochs", epochs)
+                    logger.record("time/epochs", self._epochs)
                     logger.record("time/steps_per_second", log_freq / (current_time - start_time))
                     log_from_dict(logger, profiling_lists, "time")
                     for name, scheduler in schedulers.items():
@@ -317,7 +321,7 @@ class Algorithm(ABC):
                 if self._steps >= total_steps:
                     break
                 
-            epochs += 1
+            self._epochs += 1
 
     @abstractmethod
     def _train_step(self, batch):
