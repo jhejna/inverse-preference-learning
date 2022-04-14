@@ -32,12 +32,6 @@ class TD3(Algorithm):
         self.action_range = (self.env.action_space.low, self.env.action_space.high)
         self.action_range_tensor = to_device(to_tensor(self.action_range), self.device)
         self.init_steps = init_steps
-        
-        # Now setup the logging parameters
-        self._current_obs = self.env.reset()
-        self._episode_reward = 0
-        self._episode_length = 0
-        self._num_ep = 0
 
     def setup_network(self, network_class, network_kwargs):
         self.network = network_class(self.env.observation_space, self.env.action_space, 
@@ -88,10 +82,16 @@ class TD3(Algorithm):
 
         return dict(actor_loss=actor_loss.item())
 
+    def _setup_train(self):
+        # Now setup the logging parameters
+        self._current_obs = self.env.reset()
+        self._episode_reward = 0
+        self._episode_length = 0
+        self._num_ep = 0
+        self.dataset.add(self._current_obs) # Store the initial reset observation!
+
     def _train_step(self, batch):
         all_metrics = {}
-        if self.steps == 0: 
-            self.dataset.add(self._current_obs) # Store the initial reset observation!
         if self.steps < self.init_steps:
             action = self.env.action_space.sample()
         else:

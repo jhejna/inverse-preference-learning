@@ -31,14 +31,10 @@ class PPO(Algorithm):
         # Losses
         self.value_criterion = torch.nn.MSELoss()
 
-        # Logging metrics
-        self._environment_steps = 0
-
     def _collect_rollouts(self):
         # Setup the dataset and network
         self.dataset.setup()
         self.eval_mode()
-        num_steps = 0
 
         # Setup metrics
         metrics = dict(reward=[], length=[], success=[])
@@ -87,21 +83,22 @@ class PPO(Algorithm):
             # Note: Everything is from the last observation except for the observation, which is really next_obs
             self.dataset.add(obs=obs, action=action, reward=reward, done=done, value=value, log_prob=log_prob)
             
-            self._environment_steps += 1
-            num_steps += 1
+            self._env_steps += 1
 
         self.train_mode()
-        metrics['env_steps'] = self._environment_steps # Log environment steps because it isn't proportional to the number of batches.
+        metrics['env_steps'] = self._env_steps # Log environment steps because it isn't proportional to the number of batches.
         return metrics
+
+    def _setup_train(self):
+        # Logging metrics
+        self._env_steps = 0
+        self._collect_rollouts()
     
     def _train_step(self, batch):
-        metrics = {}
-        # TODO: Detect when we should reset the buffer
+        metrics = dict(env_steps=self._env_steps)
         if self.dataset.last_batch and self.epochs % self.num_epochs == 0:
             # On the last batch of the epoch recollect data.
             metrics.update(self._collect_rollouts())
-            if self.steps == 0:
-                return metrics # We need to collect the first data before we can actually run the algorithm.
         
         # Run the policy to predict the values, log probs, and entropies
         latent = self.network.encoder(batch["obs"])

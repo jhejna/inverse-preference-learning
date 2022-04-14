@@ -28,12 +28,6 @@ class SAC(Algorithm):
         self.target_freq = target_freq
         self.init_steps = init_steps
 
-        # Now setup the logging parameters
-        self._current_obs = self.env.reset()
-        self._episode_reward = 0
-        self._episode_length = 0
-        self._num_ep = 0
-
     @property
     def alpha(self):
         return self.log_alpha.exp()
@@ -105,10 +99,15 @@ class SAC(Algorithm):
         return dict(actor_loss=actor_loss.item(), entropy=entropy.item(), 
                     alpha_loss=alpha_loss.item(), alpha=self.alpha.detach().item())
 
+    def _setup_train(self):
+        self._current_obs = self.env.reset()
+        self._episode_reward = 0
+        self._episode_length = 0
+        self._num_ep = 0
+        self.dataset.add(self._current_obs) # Store the initial reset observation!
+
     def _train_step(self, batch):
         all_metrics = {}
-        if self.steps == 0: 
-            self.dataset.add(self._current_obs) # Store the initial reset observation!
         if self.steps < self.init_steps:
             action = self.env.action_space.sample()
         else:
