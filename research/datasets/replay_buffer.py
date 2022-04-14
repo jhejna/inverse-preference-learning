@@ -1,5 +1,3 @@
-from json import load
-from multiprocessing.sharedctypes import Value
 import torch
 import numpy as np
 import tempfile
@@ -23,6 +21,24 @@ def load_episode(path):
         episode = np.load(f)
         episode = {k: episode[k] for k in episode.keys()}
         return episode
+
+def construct_buffer_helper(space, capacity):
+    if isinstance(space, gym.spaces.Dict):
+        return {k: construct_buffer_helper(v) for k, v in space.items()}
+    elif isinstance(space, gym.spaces.Box):
+        dtype = np.float32 if space.dtype == np.float64 else space.dtype
+        return np.empty((capacity, *space.shape), dtype=dtype)
+    elif isinstance(space, gym.spaces.Discrete):
+        return np.empty((capacity,), dtype=np.int64)
+    elif isinstance(space, np.ndarray):
+        dtype = np.float32 if space.dtype == np.float64 else space.dtype
+        return np.empty((capacity,) + space.shape, dtype=dtype)
+    elif isinstance(space, float):
+        return np.empty((capacity,), dtype=np.float32)
+    elif isinstance(space, bool):
+        return np.empty((capacity,), dtype=np.bool_)
+    else:
+        raise ValueError("Invalid space provided")
 
 class ReplayBuffer(torch.utils.data.IterableDataset):
     '''
@@ -108,22 +124,12 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         self._idx = 0
         self._size = 0
         self._capacity = self.capacity // self._num_workers
-
-        def construct_buffer_helper(space):
-            if isinstance(space, gym.spaces.Dict):
-                return {k: construct_buffer_helper(v) for k, v in space.items()}
-            elif isinstance(space, gym.spaces.Box):
-                return np.empty((self._capacity, *space.shape), dtype=space.dtype)
-            elif isinstance(space, gym.spaces.Discrete):
-                return np.empty((self.capacity,), dtype=np.int64)
-            else:
-                raise ValueError("Invalid space provided")
         
-        self._obs_buffer = construct_buffer_helper(self.observation_space)
-        self._action_buffer = construct_buffer_helper(self.action_space)
-        self._reward_buffer = np.empty((self._capacity,), dtype=np.float32)
-        self._discount_buffer = np.empty((self._capacity,), dtype=np.float32)
-        self._done_buffer = np.empty((self._capacity,), dtype=np.bool_)
+        self._obs_buffer = construct_buffer_helper(self.observation_space, self._capacity)
+        self._action_buffer = construct_buffer_helper(self.action_space, self._capacity)
+        self._reward_buffer = construct_buffer_helper(0.0, self._capacity)
+        self._discount_buffer = construct_buffer_helper(0.0, self._capacity)
+        self._done_buffer = construct_buffer_helper(False, self._capacity)
 
         # setup episode tracker to track loaded episodes
         self._episode_filenames = set()

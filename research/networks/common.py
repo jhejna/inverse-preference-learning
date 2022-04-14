@@ -17,6 +17,14 @@ class MLP(nn.Module):
         if not output_act is None:
             net.append(output_act())
         self.net = nn.Sequential(*net)
+        self._has_output_act = False if output_act is None else True
+
+    @property
+    def last_layer(self):
+        if self._has_output_act:
+            return self.net[-2]
+        else:
+            return self.net[-1]
 
     def forward(self, x):
         return self.net(x)
