@@ -218,6 +218,7 @@ class Algorithm(ABC):
         self._steps = 0
         self._epochs = 0
         self._total_steps = total_steps
+        current_step = 0
         train_metric_lists = defaultdict(list)
         best_validation_metric = -1*float('inf') if loss_metric in MAX_VALID_METRICS else float('inf')
         last_train_log = 0
@@ -231,7 +232,7 @@ class Algorithm(ABC):
         start_time = current_time = time.time()
         profiling_metric_lists = defaultdict(list)
         
-        while self._steps < total_steps:
+        while current_step < total_steps:
 
             for batch in dataloader:
                 # Profiling
@@ -251,7 +252,7 @@ class Algorithm(ABC):
                 assert self.network.training, "Network was not in training mode and trainstep was called."
                 train_metrics = self._train_step(batch)
                 for metric_name, metric_value in train_metrics.items():
-                    train_metric_lists[metric_value].append(metric_value)
+                    train_metric_lists[metric_name].append(metric_value)
 
                 if profile_freq > 0 and self._steps % profile_freq == 0:
                     stop_time = time.time()
@@ -338,7 +339,7 @@ class Algorithm(ABC):
                 if profile_freq > 0 and self._steps % profile_freq == 0:
                     current_time = time.time()
 
-                if self._steps >= total_steps:
+                if current_step >= total_steps:
                     break
                 
             self._epochs += 1
