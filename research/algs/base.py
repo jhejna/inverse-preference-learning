@@ -1,3 +1,4 @@
+from cmath import log
 import os
 import time
 import torch
@@ -15,17 +16,17 @@ from research.utils import utils
 from research.utils.evaluate import eval_policy
 
 
-def log_from_dict(logger, loss_lists, prefix):
+def log_from_dict(logger, metric_lists, prefix):
     keys_to_remove = []
-    for loss_name, loss_value in loss_lists.items():
-        if isinstance(loss_value, list) and len(loss_value) > 0:
-            logger.record(prefix + "/" + loss_name, np.mean(loss_value))
-            keys_to_remove.append(loss_name)
+    for metric_name, metric_value in metric_lists.items():
+        if isinstance(metric_value, list) and len(metric_value) > 0:
+            logger.record(prefix + "/" + metric_name, np.mean(metric_value))
+            keys_to_remove.append(metric_name)
         else:
-            logger.record(prefix + "/" + loss_name, loss_value)
-            keys_to_remove.append(loss_name)
+            logger.record(prefix + "/" + metric_name, metric_value)
+            keys_to_remove.append(metric_name)
     for key in keys_to_remove:
-        del loss_lists[key]
+        del metric_lists[key]
 
 def _worker_init_fn(worker_id):
     seed = np.random.get_state()[1][0] + worker_id
@@ -179,12 +180,15 @@ class Algorithm(ABC):
             batch = utils.to_device(batch, self.device)
         return batch
 
-    def train(self, path, total_steps, schedule=None, logger=None, schedule_kwargs={}, 
+    def train(self, path, total_steps, schedule=None, schedule_kwargs={}, 
                     log_freq=100, eval_freq=1000, max_eval_steps=-1, workers=4, loss_metric="loss", 
-                    eval_ep=-1, profile_freq=-1):
+                    eval_ep=-1, profile_freq=-1, use_wandb=False, x_axis="steps"):
         
-        if logger is None:
-            logger = Logger(path=path, writers=['tb', 'csv']) # No wandb.
+        writers = ['tb', 'csv']
+        if use_wandb:
+            writers.append('wandb')
+        logger = Logger(path=path, writers=writers)
+
         # Construct the dataloaders.
         self.setup_datasets()
         shuffle = not issubclass(self.dataset_class, torch.utils.data.IterableDataset)
@@ -212,16 +216,20 @@ class Algorithm(ABC):
 
         # Setup model metrics.
         self._steps = 0
-        self._total_steps = total_steps
         self._epochs = 0
-        loss_lists = defaultdict(list)
+        self._total_steps = total_steps
+        train_metric_lists = defaultdict(list)
         best_validation_metric = -1*float('inf') if loss_metric in MAX_VALID_METRICS else float('inf')
+        last_train_log = 0
+        last_validation_log = 0
         
-        # Setup profiling
-        start_time = current_time = time.time()
-        profiling_lists = defaultdict(list)
-
+        # Setup training
+        self._setup_train()
         self.network.train()
+
+        # Setup profiling immediately before we start the loop.
+        start_time = current_time = time.time()
+        profiling_metric_lists = defaultdict(list)
         
         while self._steps < total_steps:
 
@@ -229,25 +237,25 @@ class Algorithm(ABC):
                 # Profiling
                 if profile_freq > 0 and self._steps % profile_freq == 0:
                     stop_time = time.time()
-                    profiling_lists['dataset'].append(stop_time - current_time)
+                    profiling_metric_lists['dataset'].append(stop_time - current_time)
                     current_time = stop_time
 
                 batch = self._format_batch(batch)
 
                 if profile_freq > 0 and self._steps % profile_freq == 0:
                     stop_time = time.time()
-                    profiling_lists['preprocess'].append(stop_time - current_time)
+                    profiling_metric_lists['preprocess'].append(stop_time - current_time)
                     current_time = stop_time
 
                 # Train the network
                 assert self.network.training, "Network was not in training mode and trainstep was called."
-                losses = self._train_step(batch)
-                for loss_name, loss_value in losses.items():
-                    loss_lists[loss_name].append(loss_value)
+                train_metrics = self._train_step(batch)
+                for metric_name, metric_value in train_metrics.items():
+                    train_metric_lists[metric_value].append(metric_value)
 
                 if profile_freq > 0 and self._steps % profile_freq == 0:
                     stop_time = time.time()
-                    profiling_lists['train_step'].append(stop_time - current_time)
+                    profiling_metric_lists['train_step'].append(stop_time - current_time)
 
                 # Increment the number of training steps.
                 self._steps += 1
@@ -256,36 +264,48 @@ class Algorithm(ABC):
                 for scheduler in schedulers.values():
                     scheduler.step()
 
-                # Run the logger
-                if self._steps % log_freq == 0:
+                # Compute the current step. This is so we can use other metrics
+                if x_axis in train_metrics:
+                    current_step = train_metrics[x_axis]
+                elif x_axis == "epoch":
+                    current_step = self.epochs
+                else:
+                    current_step = self._steps
+
+                if (current_step - last_train_log) >= log_freq:
+                    # Timing metrics
                     current_time = time.time()
-                    log_from_dict(logger, loss_lists, "train")
+                    logger.record("time/steps", self._steps)
                     logger.record("time/epochs", self._epochs)
+                    # TODO: update steps per second
                     logger.record("time/steps_per_second", log_freq / (current_time - start_time))
-                    log_from_dict(logger, profiling_lists, "time")
+                    start_time = current_time
+                    # Record Other metrics
                     for name, scheduler in schedulers.items():
                         logger.record("lr/" + name, scheduler.get_last_lr()[0])
-                    start_time = current_time
-                    logger.dump(step=self.steps)
+                    log_from_dict(logger, profiling_metric_lists, "time")
+                    log_from_dict(logger, train_metric_lists, "train")
+                    logger.dump(step=current_step)
+                    last_train_log = current_step
 
-                if self._steps % eval_freq == 0:
+                if (current_step - last_validation_log) >= eval_freq:
                     self.eval_mode()
                     current_validation_metric = None
                     if not validation_dataloader is None:
                         eval_steps = 0
-                        validation_loss_lists = defaultdict(list)
+                        validation_metric_lists = defaultdict(list)
                         for batch in validation_dataloader:
                             batch = self._format_batch(batch)
                             losses = self._validation_step(batch)
-                            for loss_name, loss_value in losses.items():
-                                validation_loss_lists[loss_name].append(loss_value)
+                            for metric_name, metric_value in losses.items():
+                                validation_metric_lists[metric_name].append(metric_value)
                             eval_steps += 1
                             if eval_steps == max_eval_steps:
                                 break
 
-                        if loss_metric in validation_loss_lists:
-                            current_validation_metric = np.mean(validation_loss_lists[loss_metric])
-                        log_from_dict(logger, validation_loss_lists, "valid")
+                        if loss_metric in validation_metric_lists:
+                            current_validation_metric = np.mean(validation_metric_lists[loss_metric])
+                        log_from_dict(logger, validation_metric_lists, "valid")
 
                     # Now run any extra validation steps, independent of the validation dataset.
                     validation_extras = self._validation_extras(path, self._steps, validation_dataloader)
@@ -293,7 +313,7 @@ class Algorithm(ABC):
                         current_validation_metric = validation_extras[loss_metric]
                     log_from_dict(logger, validation_extras, "valid")
 
-                    # TODO: evaluation episodes.
+                    # Evaluation episodes
                     if self.eval_env is not None and eval_ep > 0:
                         eval_metrics = eval_policy(self.eval_env, self, eval_ep)
                         if loss_metric in eval_metrics:
@@ -310,7 +330,8 @@ class Algorithm(ABC):
                         best_validation_metric = current_validation_metric
 
                     # Eval Logger Dump to CSV
-                    logger.dump(step=self.steps, eval=True) # Mark True on the eval flag
+                    logger.dump(step=current_step, eval=True) # Mark True on the eval flag
+                    last_validation_log = current_step
                     self.save(path, "final_model") # Also save the final model every eval period.
                     self.train_mode()
 
@@ -322,6 +343,7 @@ class Algorithm(ABC):
                     break
                 
             self._epochs += 1
+        logger.close()
 
     @abstractmethod
     def _train_step(self, batch):
@@ -334,6 +356,12 @@ class Algorithm(ABC):
     def _validation_step(self, batch):
         '''
         perform a validation step. Should return a dict of loggable values.
+        '''
+        pass
+
+    def _setup_train(self):
+        '''
+        Does nothing by default. Is called prior to running the training loop.
         '''
         pass
 

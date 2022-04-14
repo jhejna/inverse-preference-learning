@@ -16,6 +16,9 @@ def to_tensor(batch):
     elif isinstance(batch, list) or isinstance(batch, tuple):
         batch = [to_tensor(v) for v in batch]
     elif isinstance(batch, np.ndarray):
+        # Special case to handle float64 -- which we never want to use with pytorch
+        if batch.dtype == np.float64:
+            batch = batch.astype(np.float32)
         batch = torch.from_numpy(batch)
     return batch
 
