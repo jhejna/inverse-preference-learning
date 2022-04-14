@@ -161,7 +161,7 @@ class AdaptiveKLPPO(Algorithm):
         self.max_grad_norm = max_grad_norm
         self.normalize_advantage = normalize_advantage
         self.target_kl = target_kl
-        self.kl_window = None
+        self.kl_window = kl_window
         self.beta = 1
 
         # Losses
