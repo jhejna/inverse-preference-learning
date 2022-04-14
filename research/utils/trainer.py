@@ -68,19 +68,20 @@ def train(config, path, device="auto"):
     git_head_hash = process.communicate()[0].strip()
     with open(os.path.join(path, 'git_hash.txt'), 'wb') as f:
         f.write(git_head_hash)
-    # Setup the logger
-    writers = ['tb', 'csv']
+    
+    # Setup wandb here if we have it configured in setup_shell
     wandb_api_key = os.getenv('WANDB_API_KEY')
     if wandb_api_key is not None and wandb_api_key != "":
-        # We have wandb, get the project name
+        # We have wandb, get the project name and initialize
         import wandb
         project_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
         wandb.init(project=os.path.basename(project_dir), 
                    name=os.path.basename(path), 
                    config=config.flatten(separator="-"),
                    dir=os.path.join(os.path.dirname(project_dir), "wandb"))
-        writers.append('wandb')
-    logger = Logger(path=path, writers=writers)
+        use_wandb = True
+    else:
+        use_wandb = False
 
     model = get_model(config, device=device)
     assert issubclass(type(model), research.algs.base.Algorithm)
@@ -94,9 +95,8 @@ def train(config, path, device="auto"):
 
     print("[research] Training a model with", sum(p.numel() for p in model.network.parameters() if p.requires_grad), "trainable parameters.")
     
-    model.train(path, schedule=schedule, logger=logger, schedule_kwargs=config['schedule_kwargs'], **config['train_kwargs'])
+    model.train(path, schedule=schedule, schedule_kwargs=config['schedule_kwargs'], use_wandb=use_wandb, **config['train_kwargs'])
     
-    logger.close() # Close the logger and flush everything
     print("[research] finished training for", model.steps, "steps.")
     return model
 
