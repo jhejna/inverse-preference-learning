@@ -277,8 +277,7 @@ class Algorithm(ABC):
                     current_time = time.time()
                     logger.record("time/steps", self._steps)
                     logger.record("time/epochs", self._epochs)
-                    # TODO: update steps per second
-                    logger.record("time/steps_per_second", log_freq / (current_time - start_time))
+                    logger.record("time/steps_per_second", (current_step - last_train_log) / (current_time - start_time))
                     start_time = current_time
                     # Record Other metrics
                     for name, scheduler in schedulers.items():
