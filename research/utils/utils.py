@@ -62,7 +62,22 @@ def contains_tensors(batch):
     elif isinstance(batch, torch.Tensor):
         return True
     else:
-        return False
+        return 
+        
+def get_device(batch):
+    if isinstance(batch, dict):
+        return get_device(list(batch.values()))
+    elif isinstance(batch, list):
+        devices = [get_device(d) for d in batch]
+        for d in devices:
+            if d is not None:
+                return d
+        else:
+            return None
+    elif isinstance(batch, torch.Tensor):
+        return batch.device
+    else:
+        return None
 
 class PrintNode(torch.nn.Module):
 
