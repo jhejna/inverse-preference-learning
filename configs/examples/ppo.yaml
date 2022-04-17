@@ -3,11 +3,13 @@
 alg: PPO
 alg_kwargs:
   clip_range: 0.2
-  clip_range_vf: null
+  clip_range_vf: 0.5
   num_epochs: 10
   normalize_advantage: True
   ent_coeff: 0.0
   vf_coeff: 0.5
+  normalize_returns: True
+  reward_clip: 10
 
 optim: Adam
 optim_kwargs:
@@ -43,7 +45,9 @@ dataset_kwargs:
   capacity: 2048
   batch_size: 64
 
-processor: null
+processor: RunningObservationNormalizer
+processor_kwargs:
+  clip: 10
 
 train_kwargs: # Arguments given to Algorithm.train
   total_steps: 1000000 # The total number of steps to train
