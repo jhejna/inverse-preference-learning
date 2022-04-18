@@ -22,12 +22,19 @@ fi
 
 # First check if we have a GPU available
 if nvidia-smi | grep "CUDA Version"; then
-    if [ -d "/usr/local/cuda-11.1" ]; then
+    if [ -d "/usr/local/cuda-11.4" ]; then
+        export PATH=/usr/local/cuda-11.4/bin:$PATH
+    elif [ -d "/usr/local/cuda-11.3" ]; then
+        export PATH=/usr/local/cuda-11.3/bin:$PATH
+    elif [ -d "/usr/local/cuda-11.1" ]; then
         export PATH=/usr/local/cuda-11.1/bin:$PATH
     elif [ -d "/usr/local/cuda-11.0" ]; then
         export PATH=/usr/local/cuda-11.0/bin:$PATH
     elif [ -d "/usr/local/cuda-10.2" ]; then
         export PATH=/usr/local/cuda-10.2/bin:$PATH
+    elif [ -d "/usr/local/cuda" ]; then
+        export PATH=/usr/local/cuda/bin:$PATH
+        echo "Using default CUDA. Compatibility should be verified."
     else
         echo "Warning: Could not find a CUDA version but GPU was found."
     fi
