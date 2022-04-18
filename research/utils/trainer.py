@@ -85,7 +85,8 @@ def train(config, path, device="auto"):
 
     model = get_model(config, device=device)
     assert issubclass(type(model), research.algs.base.Algorithm)
-
+    print("[research] Using device", model.device)
+    
     if config['seed'] is not None:
         # Seed the model if provided.
         model.seed(config['seed'])
