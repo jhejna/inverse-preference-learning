@@ -17,14 +17,16 @@ fi
 
 if $USE_MUJOCO_PY; then
     echo "Using mujoco_py"
+    if [ -d "/usr/lib/nvidia" ]; then
+        export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/lib/nvidia
+    fi
+    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/.mujoco/mujoco210/bin
     export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:~/.mujoco/mujoco200/bin
 fi
 
 # First check if we have a GPU available
 if nvidia-smi | grep "CUDA Version"; then
-    if [ -d "/usr/local/cuda-11.4" ]; then
-        export PATH=/usr/local/cuda-11.4/bin:$PATH
-    elif [ -d "/usr/local/cuda-11.3" ]; then
+    if [ -d "/usr/local/cuda-11.3" ]; then
         export PATH=/usr/local/cuda-11.3/bin:$PATH
     elif [ -d "/usr/local/cuda-11.1" ]; then
         export PATH=/usr/local/cuda-11.1/bin:$PATH
