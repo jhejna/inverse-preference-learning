@@ -3,7 +3,7 @@ channels:
   - pytorch
   - default
 dependencies:
-  - python=3.8
+  - python
   
   # pytorch
   - pytorch
