@@ -55,7 +55,7 @@ class RolloutBuffer(torch.utils.data.IterableDataset):
         def add_to_buffer_helper(buffer, value):
             if isinstance(buffer, dict):
                 for k, v in buffer.items():
-                    add_to_buffer_helper(buffer, value[k])
+                    add_to_buffer_helper(v, value[k])
             elif isinstance(buffer, np.ndarray):
                 buffer[self._idx] = value
             else:
