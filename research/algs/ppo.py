@@ -174,7 +174,7 @@ class PPO(Algorithm):
     def _validation_step(self, batch):
         raise NotImplementedError("RL Algorithm does not have a validation dataset.")
 
-class AdaptiveKLPPO(Algorithm):
+class AdaptiveKLPPO(PPO):
     
     def __init__(self, *args, 
             target_kl=0.025,
