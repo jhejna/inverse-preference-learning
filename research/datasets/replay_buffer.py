@@ -285,7 +285,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
 
     def _get_one_idx(self, stack):
         # Add 1 for the first dummy transition
-        idx = np.random.randint(0, self._size - self.nstep) + 1
+        idx = np.random.randint(0, self._size - self.nstep*stack) + 1
         done_idxs = idx + np.arange(self.nstep*stack) - 1
         if np.any(self._done_buffer[done_idxs]):
             # If the episode is done at any point in the range, we need to sample again!
@@ -295,7 +295,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         return idx
 
     def _get_many_idxs(self, batch_size, stack):
-        idxs = np.random.randint(0, self._size - self.nstep, size=int(self.sample_multiplier*batch_size)) + 1
+        idxs = np.random.randint(0, self._size - self.nstep*stack, size=int(self.sample_multiplier*batch_size)) + 1
 
         done_idxs = np.expand_dims(idxs, axis=-1) + np.arange(self.nstep*stack) - 1
         valid = np.logical_not(np.any(self._done_buffer[done_idxs], axis=-1)) # Compute along the done axis, not the index axis.
