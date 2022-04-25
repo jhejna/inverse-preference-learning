@@ -291,8 +291,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
             # If the episode is done at any point in the range, we need to sample again!
             return self._get_one_idx(stack)
         if stack > 1:
-            stack_idx = np.arange(stack)*self.nstep
-            idx = np.expand_dims(idx, axis=-1) + stack_idx
+            idx = idx + np.arange(stack)*self.nstep
         return idx
 
     def _get_many_idxs(self, batch_size, stack):
@@ -304,11 +303,11 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         valid_idxs = idxs[valid == True] # grab only the idxs that are still valid.
         if len(valid_idxs) < batch_size:
             print("[research ReplayBuffer] Buffer Sampler did not recieve batch_size number of valid indices. Consider increasing sample_multiplier.")
-            return self._get_many_idxs(batch_size)
+            return self._get_many_idxs(batch_size, stack)
         idxs =  valid_idxs[:batch_size] # Return the first [:batch_size] of them.
         if stack > 1:
-            stack_idx = np.arange(stack)*self.nstep
-            idx = np.expand_dims(idx, axis=-1) + stack_idx
+            stack_idxs = np.arange(stack)*self.nstep
+            idxs = np.expand_dims(idxs, axis=-1) + stack_idxs
         return idxs
 
     def sample(self, batch_size=None, stack=1):
