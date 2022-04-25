@@ -50,7 +50,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
     def __init__(self, observation_space, action_space, 
                        discount=0.99, nstep=1, preload_path=None,
                        capacity=100000, fetch_every=1000, cleanup=True,
-                       batch_size=None, sample_multiplier=1.5):
+                       batch_size=None, sample_multiplier=1.5, stack=1):
         # Observation and action space values
         self.observation_space = observation_space
         self.action_space = action_space
@@ -58,6 +58,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         # Queuing values
         self.discount = discount
         self.nstep = nstep
+        self.stack = stack
         self.batch_size = 1 if batch_size is None else batch_size
 
         # Data storage values
@@ -282,38 +283,43 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
                 except OSError:
                     pass
 
-    def _get_one_idx(self):
+    def _get_one_idx(self, stack):
         # Add 1 for the first dummy transition
         idx = np.random.randint(0, self._size - self.nstep) + 1
-        for i in range(self.nstep):
-            if self._done_buffer[idx + i - 1]: # We cannot come from a "done" observation, subtract one
-                # If the episode is done here, we need to get a new transition!
-                return self._get_one_idx() 
+        done_idxs = idx + np.arange(self.nstep*stack) - 1
+        if np.any(self._done_buffer[done_idxs]):
+            # If the episode is done at any point in the range, we need to sample again!
+            return self._get_one_idx(stack)
+        if stack > 1:
+            stack_idx = np.arange(stack)*self.nstep
+            idx = np.expand_dims(idx, axis=-1) + stack_idx
         return idx
 
-    def _get_many_idxs(self, batch_size):
+    def _get_many_idxs(self, batch_size, stack):
         idxs = np.random.randint(0, self._size - self.nstep, size=int(self.sample_multiplier*batch_size)) + 1
-        valid = np.ones(idxs.shape, dtype=np.bool_)
-        # Mark all the invalid transitions
-        for i in range(self.nstep):
-            dones = self._done_buffer[idxs + i - 1]  # We cannot come from a "done" observation, subtract one
-            valid[dones == True] = False
+
+        done_idxs = np.expand_dims(idxs, axis=-1) + np.arange(self.nstep*stack) - 1
+        valid = np.logical_not(np.any(self._done_buffer[done_idxs], axis=-1)) # Compute along the done axis, not the index axis.
+
         valid_idxs = idxs[valid == True] # grab only the idxs that are still valid.
         if len(valid_idxs) < batch_size:
             print("[research ReplayBuffer] Buffer Sampler did not recieve batch_size number of valid indices. Consider increasing sample_multiplier.")
             return self._get_many_idxs(batch_size)
-        return valid_idxs[:batch_size] # Return the first [:batch_size] of them.
+        idxs =  valid_idxs[:batch_size] # Return the first [:batch_size] of them.
+        if stack > 1:
+            stack_idx = np.arange(stack)*self.nstep
+            idx = np.expand_dims(idx, axis=-1) + stack_idx
+        return idxs
 
-    def sample(self, batch_size=None):
-        if self._size <= self.nstep + 2:
+    def sample(self, batch_size=None, stack=1):
+        if self._size <= self.nstep*stack + 2:
             return {}
         # NOTE: one small bug is that we won't end up being able to sample segments that span
-        # Across the barrier. We lose 1 to self.nstep transitions.
-        batch_size = self.batch_size if batch_size is None else batch_size
+        # Across the barrier at the end of an episode. We lose 1 to self.nstep transitions.
         if batch_size > 1:
-            idxs = self._get_many_idxs(batch_size)
+            idxs = self._get_many_idxs(batch_size, stack)
         else:
-            idxs = self._get_one_idx()
+            idxs = self._get_one_idx(stack)
         obs_idxs = idxs - 1
         next_obs_idxs = idxs + self.nstep - 1
 
@@ -331,7 +337,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
     def __iter__(self):
         self.setup()
         while True:
-            yield self.sample()
+            yield self.sample(batch_size=self.batch_size, stack=self.stack)
             if self.is_parallel:
                 self._samples_since_last_load += 1
                 if self._samples_since_last_load >= self.fetch_every:

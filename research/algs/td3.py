@@ -51,7 +51,7 @@ class TD3(Algorithm):
 
     def _update_critic(self, batch):
         with torch.no_grad():
-            noise = (torch.randn_like(batch['action']) * self.policy_noise).clamp(-self.noise_clip, self.noise_clip)
+            noise = (torch.randn_like(batch['action']) * self.target_noise).clamp(-self.noise_clip, self.noise_clip)
             next_action = self.target_network.actor(batch['next_obs'])
             noisy_next_action = (next_action + noise).clamp(*self.action_range_tensor)
             target_q1, target_q2 = self.target_network.critic(batch['next_obs'], noisy_next_action)
