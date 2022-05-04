@@ -1,15 +1,17 @@
 # Example Config that uses almost all values
 
-alg: DoubleDQN
+alg: SoftDQN
 alg_kwargs:
   tau: 1.0
   train_freq: 4
   target_freq: 1000
   max_grad_norm: 10
-  eps_start: 1.0
-  eps_end: 0.05
-  eps_frac: 0.1
+  eps_start: 0.0
+  eps_end: 0.0
+  eps_frac: 0.0
   init_steps: 1000
+  loss: mse
+  beta: 0.01
 
 optim: Adam
 optim_kwargs:

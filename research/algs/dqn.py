@@ -3,6 +3,7 @@ import numpy as np
 import random
 
 from .base import Algorithm
+from research.utils import utils
 
 class DQN(Algorithm):
 
@@ -15,7 +16,7 @@ class DQN(Algorithm):
                        eps_start=1.0,
                        eps_end=0.05,
                        eps_frac=0.1,
-                       double_q=True,
+                       loss="huber",
                        **kwargs):
         super().__init__(env, network_class, dataset_class, **kwargs)
         # Save extra parameters
@@ -27,9 +28,13 @@ class DQN(Algorithm):
         self.eps_start = eps_start
         self.eps_end = eps_end
         self.eps_frac = eps_frac
-        self.double_q = double_q
-        self.loss = torch.nn.SmoothL1Loss()
-
+        if loss == "mse":
+            self.loss = torch.nn.MSELoss()
+        elif loss == "huber":
+            self.loss = torch.nn.SmoothL1Loss()
+        else:
+            raise ValueError("Invalid loss specification")
+    
     def setup_network(self, network_class, network_kwargs):
         self.network = network_class(self.env.observation_space, self.env.action_space, 
                                      **network_kwargs).to(self.device)
@@ -47,17 +52,29 @@ class DQN(Algorithm):
         self._num_ep = 0
         self.dataset.add(self._current_obs) # Store the initial reset observation!
 
+    def _compute_action(self):
+        return self.predict(self._current_obs)
+
+    def _compute_value(self, batch):
+        next_q = self.target_network(batch['next_obs'])
+        next_v, _ = next_q.max(dim=-1)
+        return next_v
+
     def _train_step(self, batch):
         all_metrics = {}
 
-        frac = min(1.0, self.steps / (self.total_steps*self.eps_frac))
-        eps = (1 - frac)*self.eps_start + frac*self.eps_end
+        if self.eps_frac > 0:
+            frac = min(1.0, self.steps / (self.total_steps*self.eps_frac))
+            eps = (1 - frac)*self.eps_start + frac*self.eps_end
+        else:
+            eps = 0.0
+        
         if self.steps < self.init_steps or random.random() < eps:
             action = self.env.action_space.sample()
         else:
             self.eval_mode()
             with torch.no_grad():
-                action = self.predict(self._current_obs)
+                action = self._compute_action()
             self.train_mode()
         
         next_obs, reward, done, info = self.env.step(action)
@@ -94,17 +111,13 @@ class DQN(Algorithm):
         if self.steps % self.train_freq == 0:
             # Update the agent
             with torch.no_grad():
-                next_q = self.target_network(batch['next_obs'])
-                if self.double_q:
-                    next_a = self.network.predict(batch['next_obs'])
-                    next_q = torch.gather(next_q, dim=-1, index=next_a.unsqueeze(-1)).squeeze(-1)
-                else:
-                    next_q, _ = next_q.max(dim=-1)
-                target_q = batch['reward'] + batch['discount']*next_q
-            
+                next_v = self._compute_value(batch)
+                target_q = batch['reward'] + batch['discount']*next_v
+
             q = self.network(batch['obs'])
             q = torch.gather(q, dim=-1, index=batch['action'].long().unsqueeze(-1)).squeeze(-1)
             loss = self.loss(q, target_q)
+            
             self.optim['network'].zero_grad(set_to_none=True)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(self.network.parameters(), self.max_grad_norm)
@@ -122,3 +135,33 @@ class DQN(Algorithm):
 
     def _validation_step(self, batch):
         raise NotImplementedError("RL Algorithm does not have a validation dataset.")
+
+class DoubleDQN(DQN):
+
+    def _compute_value(self, batch):
+        next_a = self.network.predict(batch['next_obs'])
+        next_q = self.target_network(batch['next_obs'])
+        next_v = torch.gather(next_q, dim=-1, index=next_a.unsqueeze(-1)).squeeze(-1)
+        return next_v
+
+class SoftDQN(DQN):
+
+    def __init__(self, *args, beta, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.beta = beta
+
+    def _compute_action(self):
+        obs = utils.unsqueeze(self._current_obs, 0)
+        obs = self._format_batch(obs)
+        q = self.network(obs)
+        dist = torch.nn.functional.softmax(q / self.beta, dim=-1)
+        dist = torch.distributions.categorical.Categorical(dist)
+        action = dist.sample()
+        action = utils.get_from_batch(action, 0)
+        action = utils.to_np(action)
+        return action
+
+    def _compute_value(self, batch):
+        next_q = self.target_network(batch['next_obs'])
+        next_v = self.beta * torch.logsumexp(next_q / self.beta, dim=-1)
+        return next_v
