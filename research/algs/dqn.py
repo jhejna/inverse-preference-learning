@@ -28,10 +28,13 @@ class DQN(Algorithm):
         self.eps_start = eps_start
         self.eps_end = eps_end
         self.eps_frac = eps_frac
+        self.loss = self._get_loss(loss)
+
+    def _get_loss(self, loss):
         if loss == "mse":
-            self.loss = torch.nn.MSELoss()
+            return torch.nn.MSELoss()
         elif loss == "huber":
-            self.loss = torch.nn.SmoothL1Loss()
+            return torch.nn.SmoothL1Loss()
         else:
             raise ValueError("Invalid loss specification")
     
@@ -146,15 +149,15 @@ class DoubleDQN(DQN):
 
 class SoftDQN(DQN):
 
-    def __init__(self, *args, beta, **kwargs):
+    def __init__(self, *args, alpha=0.1, **kwargs):
         super().__init__(*args, **kwargs)
-        self.beta = beta
+        self.alpha = alpha
 
     def _compute_action(self):
         obs = utils.unsqueeze(self._current_obs, 0)
         obs = self._format_batch(obs)
         q = self.network(obs)
-        dist = torch.nn.functional.softmax(q / self.beta, dim=-1)
+        dist = torch.nn.functional.softmax(q / self.alpha, dim=-1)
         dist = torch.distributions.categorical.Categorical(dist)
         action = dist.sample()
         action = utils.get_from_batch(action, 0)
@@ -163,5 +166,28 @@ class SoftDQN(DQN):
 
     def _compute_value(self, batch):
         next_q = self.target_network(batch['next_obs'])
-        next_v = self.beta * torch.logsumexp(next_q / self.beta, dim=-1)
+        next_v = self.alpha * torch.logsumexp(next_q / self.alpha, dim=-1)
+        return next_v
+
+class SoftDobuleDQN(DQN):
+
+    def __init__(self, *args, alpha=0.1, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.alpha = alpha
+
+    def _compute_action(self):
+        obs = utils.unsqueeze(self._current_obs, 0)
+        obs = self._format_batch(obs)
+        q = self.network(obs)
+        dist = torch.nn.functional.softmax(q / self.alpha, dim=-1)
+        dist = torch.distributions.categorical.Categorical(dist)
+        action = dist.sample()
+        action = utils.get_from_batch(action, 0)
+        action = utils.to_np(action)
+        return action
+
+    def _compute_value(self, batch):
+        log_pi = torch.nn.functional.log_softmax(self.network(batch['next_obs']), dim=-1)
+        next_q = self.target_network(batch['next_obs'])
+        next_v = self.alpha * torch.logsumexp(next_q / self.alpha + log_pi, dim=-1)
         return next_v

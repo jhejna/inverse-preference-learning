@@ -11,7 +11,7 @@ alg_kwargs:
   eps_frac: 0.0
   init_steps: 1000
   loss: mse
-  beta: 0.01
+  alpha: 0.01
 
 optim: Adam
 optim_kwargs:
