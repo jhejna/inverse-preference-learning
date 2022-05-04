@@ -169,7 +169,7 @@ class SoftDQN(DQN):
         next_v = self.alpha * torch.logsumexp(next_q / self.alpha, dim=-1)
         return next_v
 
-class SoftDobuleDQN(DQN):
+class SoftDoubleDQN(DQN):
 
     def __init__(self, *args, alpha=0.1, **kwargs):
         super().__init__(*args, **kwargs)
