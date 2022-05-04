@@ -36,7 +36,10 @@ def get_model(config, device="auto"):
     optim_class = None if config['optim'] is None else vars(torch.optim)[config['optim']]
     processor_class = None if config['processor'] is None else vars(research.processors)[config['processor']]
     env = None if config['env'] is None else get_env_from_config(config)
-    eval_env = None if config['env'] is None else get_env_from_config(config)
+    if config['env'] is None or config['train_kwargs'].get('eval_ep', 0) <= 0:
+        eval_env = None
+    else:
+        eval_env = get_env_from_config(config)
 
     algo = alg_class(env, network_class, dataset_class,
                      network_kwargs=config['network_kwargs'], 
