@@ -58,3 +58,4 @@ class ActorCriticPolicy(nn.Module):
             return self._actor.predict(obs, **kwargs)
         else:
             return self._actor(obs)
+

@@ -36,6 +36,24 @@ class ContinuousMLPCritic(nn.Module):
         x = torch.cat((obs, action), dim=-1)
         return [q(x).squeeze(-1) for q in self.qs]
 
+class DiscreteMLPCritic(nn.Module):
+
+    def __init__(self, observation_space, action_space, hidden_layers=[256, 256], act=nn.ReLU, ortho_init=False, output_gain=None):
+        super().__init__()
+        self.q = MLP(observation_space.shape[0], action_space.n, hidden_layers=hidden_layers, act=act)
+        if ortho_init:
+            self.apply(partial(weight_init, gain=float(ortho_init))) # use the fact that True converts to 1.0
+            if output_gain is not None:
+                self.mlp.last_layer.apply(partial(weight_init, gain=output_gain))
+    
+    def forward(self, obs):
+        return self.q(obs)
+
+    def predict(self, obs):
+        q = self(obs)
+        action = q.argmax(dim=-1)
+        return action
+    
 class MLPValue(nn.Module):
 
     def __init__(self, observation_space, action_space, hidden_layers=[256, 256], act=nn.ReLU, ortho_init=False, output_gain=None):
