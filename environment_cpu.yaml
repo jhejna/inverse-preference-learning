@@ -1,7 +1,7 @@
 name: research
 channels:
   - pytorch
-  - default
+  - defaults
 dependencies:
   - python
   
@@ -41,4 +41,4 @@ dependencies:
   - pip:
       - gym>=0.12
       - dm_control
-      - mujoco_py
+      - mujoco-py<2.2,>=2.1

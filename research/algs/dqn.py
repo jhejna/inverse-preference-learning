@@ -149,15 +149,16 @@ class DoubleDQN(DQN):
 
 class SoftDQN(DQN):
 
-    def __init__(self, *args, alpha=0.1, **kwargs):
+    def __init__(self, *args, exploration_alpha=0.01, target_alpha=0.1, **kwargs):
         super().__init__(*args, **kwargs)
-        self.alpha = alpha
+        self.exploration_alpha = exploration_alpha
+        self.target_alpha = target_alpha
 
     def _compute_action(self):
         obs = utils.unsqueeze(self._current_obs, 0)
         obs = self._format_batch(obs)
         q = self.network(obs)
-        dist = torch.nn.functional.softmax(q / self.alpha, dim=-1)
+        dist = torch.nn.functional.softmax(q / self.exploration_alpha, dim=-1)
         dist = torch.distributions.categorical.Categorical(dist)
         action = dist.sample()
         action = utils.get_from_batch(action, 0)
@@ -166,20 +167,21 @@ class SoftDQN(DQN):
 
     def _compute_value(self, batch):
         next_q = self.target_network(batch['next_obs'])
-        next_v = self.alpha * torch.logsumexp(next_q / self.alpha, dim=-1)
+        next_v = self.target_alpha * torch.logsumexp(next_q / self.target_alpha, dim=-1)
         return next_v
 
 class SoftDoubleDQN(DQN):
 
-    def __init__(self, *args, alpha=0.1, **kwargs):
+    def __init__(self, *args, exploration_alpha=0.01, target_alpha=0.1, **kwargs):
         super().__init__(*args, **kwargs)
-        self.alpha = alpha
+        self.exploration_alpha = exploration_alpha
+        self.target_alpha = target_alpha
 
     def _compute_action(self):
         obs = utils.unsqueeze(self._current_obs, 0)
         obs = self._format_batch(obs)
         q = self.network(obs)
-        dist = torch.nn.functional.softmax(q / self.alpha, dim=-1)
+        dist = torch.nn.functional.softmax(q / self.exploration_alpha, dim=-1)
         dist = torch.distributions.categorical.Categorical(dist)
         action = dist.sample()
         action = utils.get_from_batch(action, 0)
@@ -189,5 +191,5 @@ class SoftDoubleDQN(DQN):
     def _compute_value(self, batch):
         log_pi = torch.nn.functional.log_softmax(self.network(batch['next_obs']), dim=-1)
         next_q = self.target_network(batch['next_obs'])
-        next_v = self.alpha * torch.logsumexp(next_q / self.alpha + log_pi, dim=-1)
+        next_v = self.target_alpha * torch.logsumexp(next_q / self.target_alpha + log_pi, dim=-1)
         return next_v
