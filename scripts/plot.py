@@ -13,7 +13,7 @@ def moving_avg(x, y, window_size=1):
     moving_avg_y = np.convolve(y, np.ones(window_size) / window_size, 'valid') 
     return x[-len(moving_avg_y):], moving_avg_y
 
-def plot_run(paths, name, x_key="steps", y_keys=["eval/loss"], window_size=1, max_x_value=None):
+def plot_run(paths, name, ax=None, x_key="steps", y_keys=["eval/loss"], window_size=1, max_x_value=None):
     for path in paths:
         assert LOG_FILE_NAME in os.listdir(path), "Did not find log file, found " + " ".join(os.listdir(path))
     for y_key in y_keys:
@@ -34,7 +34,7 @@ def plot_run(paths, name, x_key="steps", y_keys=["eval/loss"], window_size=1, ma
         plot_df = pd.DataFrame({x_key: xs, y_key: ys})
         label = name + " " + y_key if len(y_keys) > 1 else name
         ci = "sd" if len(paths) > 0 else None
-        sns.lineplot(x=x_key, y=y_key, data=plot_df, sort=True, ci=ci, label=label)
+        sns.lineplot(ax=ax, x=x_key, y=y_key, data=plot_df, sort=True, ci=ci, label=label)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

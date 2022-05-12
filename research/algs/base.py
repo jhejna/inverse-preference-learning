@@ -29,9 +29,11 @@ def log_from_dict(logger, metric_lists, prefix):
         del metric_lists[key]
 
 def _worker_init_fn(worker_id):
-    seed = np.random.get_state()[1][0] + worker_id
-    np.random.seed(seed)
-    random.seed(seed)
+    state = np.random.get_state()
+    new_state = list(state)
+    new_state[2] += worker_id
+    np.random.set_state(tuple(new_state))
+    random.seed(new_state[2])
 
 MAX_VALID_METRICS = {"reward", "accuracy", "success", "is_success"}
 
