@@ -4,7 +4,7 @@ from torch import distributions
 from torch.nn import functional as F
 from functools import partial
 
-from .common import MLP
+from .common import MLP, EnsembleMLP
 
 def weight_init(m, gain=1):
     if isinstance(m, nn.Linear):
@@ -23,18 +23,23 @@ class ContinuousMLPCritic(nn.Module):
 
     def __init__(self, observation_space, action_space, hidden_layers=[256, 256], act=nn.ReLU, num_q_fns=2, ortho_init=False, output_gain=None):
         super().__init__()
-        self.qs = nn.ModuleList([
-            MLP(observation_space.shape[0] + action_space.shape[0], 1, hidden_layers=hidden_layers, act=act)
-         for _ in range(num_q_fns)])
+        self.num_q_fns = num_q_fns
+        if self.num_q_fns > 1:
+            self.q = EnsembleMLP(observation_space.shape[0] + action_space.shape[0], 1, ensemble_size=num_q_fns, hidden_layers=hidden_layers, act=act)
+        else:
+            self.q = MLP(observation_space.shape[0] + action_space.shape[0], 1, hidden_layers=hidden_layers, act=act)
+        
         if ortho_init:
             self.apply(partial(weight_init, gain=float(ortho_init))) # use the fact that True converts to 1.0
             if output_gain is not None:
                 self.mlp.last_layer.apply(partial(weight_init, gain=output_gain))
 
     def forward(self, obs, action):
-        # TODO: convert this to an ensemble model to support an arbitrary number of Q functions with no computation time cost
         x = torch.cat((obs, action), dim=-1)
-        return [q(x).squeeze(-1) for q in self.qs]
+        q = self.q(x).squeeze(-1) # Remove the last dim
+        if self.num_q_fns == 1:
+            q = q.unsqueeze(0) # add in the ensemble dim
+        return q
 
 class DiscreteMLPCritic(nn.Module):
 

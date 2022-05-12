@@ -60,29 +60,27 @@ class SAC(Algorithm):
             dist = self.network.actor(batch['next_obs'])
             next_action = dist.rsample()
             log_prob = dist.log_prob(next_action).sum(dim=-1)
-            target_q1, target_q2 = self.target_network.critic(batch['next_obs'], next_action)
-            target_v = torch.min(target_q1, target_q2) - self.alpha.detach() * log_prob
+            target_qs = self.target_network.critic(batch['next_obs'], next_action)
+            target_v = torch.min(target_qs, dim=0)[0] - self.alpha.detach() * log_prob
             target_q = batch['reward'] + batch['discount']*target_v
 
-        q1, q2 = self.network.critic(batch['obs'], batch['action'])
-        q1_loss = torch.nn.functional.mse_loss(q1, target_q)
-        q2_loss = torch.nn.functional.mse_loss(q2, target_q)
-        q_loss = q1_loss + q2_loss
+        qs = self.network.critic(batch['obs'], batch['action'])
+        # Note: Could also just compute the mean over a broadcasted target. TO investigate later.
+        q_loss = sum([torch.nn.functional.mse_loss(qs[i], target_q) for i in range(qs.shape[0])])
 
         self.optim['critic'].zero_grad(set_to_none=True)
         q_loss.backward()
         self.optim['critic'].step()
 
-        return dict(q1_loss=q1_loss.item(), q2_loss=q2_loss.item(), q_loss=q_loss.item(), 
-                    target_q=target_q.mean().item())
+        return dict(q_loss=q_loss.item(), target_q=target_q.mean().item())
     
     def _update_actor_and_alpha(self, batch):
         obs = batch['obs'].detach() # Detach the encoder so it isn't updated.
         dist = self.network.actor(obs)
         action = dist.rsample()
         log_prob = dist.log_prob(action).sum(dim=-1)
-        q1, q2 = self.network.critic(obs, action)
-        q = torch.min(q1, q2)
+        qs = self.network.critic(obs, action)
+        q = torch.min(qs, dim=0)[0]
         actor_loss = (self.alpha.detach() * log_prob - q).mean()
 
         self.optim['actor'].zero_grad(set_to_none=True)

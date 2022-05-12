@@ -54,26 +54,25 @@ class TD3(Algorithm):
             noise = (torch.randn_like(batch['action']) * self.target_noise).clamp(-self.noise_clip, self.noise_clip)
             next_action = self.target_network.actor(batch['next_obs'])
             noisy_next_action = (next_action + noise).clamp(*self.action_range_tensor)
-            target_q1, target_q2 = self.target_network.critic(batch['next_obs'], noisy_next_action)
-            target_q = torch.min(target_q1, target_q2)
+            target_q = self.target_network.critic(batch['next_obs'], noisy_next_action)
+            target_q = torch.min(target_q, dim=0)[0]
             target_q = batch['reward'] + batch['discount']*target_q
 
-        q1, q2 = self.network.critic(batch['obs'], batch['action'])
-        q1_loss = torch.nn.functional.mse_loss(q1, target_q)
-        q2_loss = torch.nn.functional.mse_loss(q2, target_q)
-        q_loss = q1_loss + q2_loss
+        qs = self.network.critic(batch['obs'], batch['action'])
+        # Note: Could also just compute the mean over a broadcasted target. TO investigate later.
+        q_loss = sum([torch.nn.functional.mse_loss(qs[i], target_q) for i in range(qs.shape[0])])
         
         self.optim['critic'].zero_grad(set_to_none=True)
         q_loss.backward()
         self.optim['critic'].step()
 
-        return dict(q1_loss=q1_loss.item(), q2_loss=q2_loss.item(), q_loss=q_loss.item(), target_q=target_q.mean().item())
+        return dict(q_loss=q_loss.item(), target_q=target_q.mean().item())
     
     def _update_actor(self, batch):
         obs = batch['obs'].detach() # Detach the encoder so it isn't updated.
         action = self.network.actor(obs)
-        q1, q2 = self.network.critic(obs, action)
-        q = (q1 + q2) / 2
+        qs = self.network.critic(obs, action)
+        q = qs.mean(dim=0) # average the qs over the ensemble
         actor_loss = -q.mean()
 
         self.optim['actor'].zero_grad(set_to_none=True)

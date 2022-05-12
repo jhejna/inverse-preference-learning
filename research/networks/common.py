@@ -32,24 +32,36 @@ class MLP(nn.Module):
 class LinearEnsemble(nn.Module):
 
     def __init__(self, in_features, out_features, bias=True, ensemble_size=3, device=None, dtype=None):
+        '''
+        An Ensemble linear layer.
+        For inputs of shape (B, H) will return (E, B, H) where E is the ensemble size
+        See https://github.com/pytorch/pytorch/issues/54147
+        '''
         factory_kwargs = {'device': device, 'dtype': dtype}
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
         self.ensemble_size = ensemble_size
-        self.weight = nn.Parameter(torch.empty((ensemble_size, in_features, out_features), **factory_kwargs))
+        self.weight = torch.empty((ensemble_size, in_features, out_features), **factory_kwargs)
         if bias:
-            self.bias = nn.Parameter(torch.empty((ensemble_size, 1, out_features), **factory_kwargs))
+            self.bias = torch.empty((ensemble_size, 1, out_features), **factory_kwargs)
         else:
             self.register_parameter('bias', None)
         self.reset_parameters()
 
     def reset_parameters(self):
-        nn.init.kaiming_uniform_(self.weight, a=math.sqrt(5))
+        # Hack to make sure initialization is correct. This shouldn't be too bad though
+        for w in self.weight:
+            w.transpose_(0, 1)
+            nn.init.kaiming_uniform_(w, a=math.sqrt(5))
+            w.transpose_(0, 1)
+        self.weight = nn.Parameter(self.weight)
+
         if self.bias is not None:
             fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.weight[0].T)
             bound = 1 / math.sqrt(fan_in)
             nn.init.uniform_(self.bias, -bound, bound)
+            self.bias = nn.Parameter(self.bias)
 
     def forward(self, input):
         if len(input.shape) == 2:
@@ -66,6 +78,10 @@ class LinearEnsemble(nn.Module):
 class EnsembleMLP(nn.Module):
 
     def __init__(self, input_dim, output_dim, ensemble_size=3, hidden_layers=[256, 256], act=nn.ReLU, output_act=None):
+        '''
+        An ensemble MLP
+        Returns values of shape (E, B, H) from input (B, H)
+        '''
         super().__init__()
         net = []
         last_dim = input_dim
@@ -77,6 +93,14 @@ class EnsembleMLP(nn.Module):
         if not output_act is None:
             net.append(output_act())
         self.net = nn.Sequential(*net)
+        self._has_output_act = False if output_act is None else True
 
     def forward(self, x):
         return self.net(x)
+
+    @property
+    def last_layer(self):
+        if self._has_output_act:
+            return self.net[-2]
+        else:
+            return self.net[-1]
