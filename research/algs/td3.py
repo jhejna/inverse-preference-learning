@@ -94,6 +94,7 @@ class TD3(Algorithm):
                 action = self.predict(self._current_obs)
             action += self.policy_noise * np.random.randn(action.shape[0])
             self.train_mode()
+        action = np.clip(action, self.env.action_space.low, self.env.action_space.high)
         
         next_obs, reward, done, info = self.env.step(action)
         self._episode_length += 1

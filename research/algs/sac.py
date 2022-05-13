@@ -109,6 +109,7 @@ class SAC(Algorithm):
             with torch.no_grad():
                 action = self.predict(self._current_obs, sample=True)
             self.train_mode()
+        action = np.clip(action, self.env.action_space.low, self.env.action_space.high)
         
         next_obs, reward, done, info = self.env.step(action)
         self._episode_length += 1
