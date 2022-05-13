@@ -146,7 +146,7 @@ class TD3(Algorithm):
             if self._env_steps < self.init_steps:
                 return all_metrics # return here.
         
-        if 'obs' in batch:
+        if 'obs' not in batch:
             return all_metrics
 
         updating_critic = self.steps % self.critic_freq == 0
