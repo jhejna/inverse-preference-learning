@@ -10,6 +10,7 @@ class SAC(Algorithm):
     def __init__(self, env, network_class, dataset_class, 
                        tau=0.005,
                        init_temperature=0.1,
+                       env_freq=1,
                        critic_freq=1,
                        actor_freq=2,
                        target_freq=2,
@@ -23,6 +24,7 @@ class SAC(Algorithm):
 
         # Save extra parameters
         self.tau = tau
+        self.env_freq = env_freq
         self.critic_freq = critic_freq
         self.actor_freq = actor_freq
         self.target_freq = target_freq
@@ -97,16 +99,10 @@ class SAC(Algorithm):
         return dict(actor_loss=actor_loss.item(), entropy=entropy.item(), 
                     alpha_loss=alpha_loss.item(), alpha=self.alpha.detach().item())
 
-    def _setup_train(self):
-        self._current_obs = self.env.reset()
-        self._episode_reward = 0
-        self._episode_length = 0
-        self._num_ep = 0
-        self.dataset.add(self._current_obs) # Store the initial reset observation!
-
-    def _train_step(self, batch):
-        all_metrics = {}
-        if self.steps < self.init_steps:
+    def _step_env(self):
+        # Step the environment and store the transition data.
+        metrics = dict()
+        if self._env_steps < self.init_steps:
             action = self.env.action_space.sample()
         else:
             self.eval_mode()
@@ -131,9 +127,9 @@ class SAC(Algorithm):
         if done:
             self._num_ep += 1
             # update metrics
-            all_metrics['reward'] = self._episode_reward
-            all_metrics['length'] = self._episode_length
-            all_metrics['num_ep'] = self._num_ep
+            metrics['reward'] = self._episode_reward
+            metrics['length'] = self._episode_length
+            metrics['num_ep'] = self._num_ep
             # Reset the environment
             self._current_obs = self.env.reset()
             self.dataset.add(self._current_obs) # Add the first timestep
@@ -141,8 +137,30 @@ class SAC(Algorithm):
             self._episode_reward = 0
         else:
             self._current_obs = next_obs
+
+        self._env_steps += 1
+        metrics['env_steps'] = self._env_steps
+        return metrics
+
+    def _setup_train(self):
+        self._current_obs = self.env.reset()
+        self._episode_reward = 0
+        self._episode_length = 0
+        self._num_ep = 0
+        self._env_steps = 0
+        self.dataset.add(self._current_obs) # Store the initial reset observation!
+
+    def _train_step(self, batch):
+        all_metrics = {}
+
+        if self.steps % self.env_freq == 0 or self._env_steps < self.init_steps:
+            # step the environment with freq env_freq or if we are before learning starts
+            metrics = self._step_env()
+            all_metrics.update(metrics)
+            if self._env_steps < self.init_steps:
+                return all_metrics # return here.
         
-        if self.steps < self.init_steps or not 'obs' in batch:
+        if 'obs' in batch:
             return all_metrics
 
         updating_critic = self.steps % self.critic_freq == 0
