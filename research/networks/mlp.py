@@ -4,11 +4,18 @@ from torch import distributions
 from torch.nn import functional as F
 from functools import partial
 
-from .common import MLP, EnsembleMLP
+from .common import MLP, LinearEnsemble, EnsembleMLP
 
 def weight_init(m, gain=1):
     if isinstance(m, nn.Linear):
         nn.init.orthogonal_(m.weight.data, gain=gain)
+        if hasattr(m.bias, 'data'):
+            m.bias.data.fill_(0.0)
+    if isinstance(m, LinearEnsemble):
+        for i in range(m.ensemble_size):
+            # Orthogonal initialization doesn't care about which axis is first
+            # Thus, we can just use ortho init as normal on each matrix.
+            nn.init.orthogonal_(m.weight.data[i], gain=gain)
         if hasattr(m.bias, 'data'):
             m.bias.data.fill_(0.0)
 
@@ -17,7 +24,7 @@ class MLPEncoder(nn.Module):
         assert len(hidden_layers) > 1, "Must have at least one hidden layer for a shared MLP Extractor"
         self.mlp = MLP(observation_space.shape[0], hidden_layers[-1], hidden_layers=hidden_layers[:-1], act=act)
         if ortho_init:
-            self.apply(weight_init, gain=float(ortho_init)) # use the fact that True converts to 1.0
+            self.apply(partial(weight_init, gain=float(ortho_init))) # use the fact that True converts to 1.0
         
 class ContinuousMLPCritic(nn.Module):
 
