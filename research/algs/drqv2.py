@@ -30,6 +30,10 @@ class TruncatedNormal(torch.distributions.Normal):
         return self._clamp(x)
 
 class DRQV2(Algorithm):
+    '''
+    NOTE: DrQv2 implementation is untested and not verified yet.
+    Please do not use this implementation for baseline comparisons.
+    '''
 
     def __init__(self, env, network_class, dataset_class, 
                        tau=0.005,

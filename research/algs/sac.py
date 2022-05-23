@@ -67,8 +67,8 @@ class SAC(Algorithm):
             target_q = batch['reward'] + batch['discount']*target_v
 
         qs = self.network.critic(batch['obs'], batch['action'])
-        # Note: Could also just compute the mean over a broadcasted target. TO investigate later.
-        q_loss = sum([torch.nn.functional.mse_loss(qs[i], target_q) for i in range(qs.shape[0])])
+        ensemble_size = qs.shape[0]
+        q_loss = ensemble_size*torch.nn.functional.mse_loss(qs, target_q.expand(ensemble_size, -1)) # averages over the ensemble. No for loop!
 
         self.optim['critic'].zero_grad(set_to_none=True)
         q_loss.backward()
