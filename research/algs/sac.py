@@ -192,3 +192,9 @@ class SAC(Algorithm):
 
     def _validation_step(self, batch):
         raise NotImplementedError("RL Algorithm does not have a validation dataset.")
+
+    def _save_extras(self):
+        return {'log_alpha': self.log_alpha}
+
+    def _load_extras(self, checkpoint):
+        self.log_alpha.data = checkpoint['log_alpha'].data

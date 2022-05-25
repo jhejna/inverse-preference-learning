@@ -110,7 +110,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
             assert not self.is_parallel, "Recalled setup on parallel replay buffer! This means __iter__ was called twice."
             return # We are in serial mode, we can create another iterator
         else:        
-            self.setup = True
+            self._setup = True
         
         worker_info = torch.utils.data.get_worker_info()
         if worker_info is None:
