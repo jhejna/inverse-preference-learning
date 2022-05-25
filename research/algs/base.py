@@ -133,7 +133,7 @@ class Algorithm(ABC):
         checkpoint = torch.load(checkpoint, map_location=self.device)
         self.network.load_state_dict(checkpoint['network'], strict=strict)
 
-        for k, v in self.optim.items():
+        for k in self.optim.items():
             if strict and k not in checkpoint['optim']:
                 raise ValueError("Strict mode was enabled, but couldn't find optimizer key")
             elif k not in checkpoint['optim']:
@@ -152,9 +152,9 @@ class Algorithm(ABC):
             for param_group in self.optim.param_groups:
                 param_group['lr'] = initial_lr
 
-        self._load_extras(checkpoint)
+        self._load_extras(checkpoint, strict=strict)
 
-    def _load_extras(self, checkpoint):
+    def _load_extras(self, checkpoint, strict=True):
         '''
         override this method to load any extra values or tensors that were saved
         '''
