@@ -116,7 +116,14 @@ class Algorithm(ABC):
         '''
         optim = {k: v.state_dict() for k, v in self.optim.items()}
         save_dict = {"network" : self.network.state_dict(), "optim": optim}
+        save_dict.update(self._save_extras())
         torch.save(save_dict, os.path.join(path, extension + ".pt"))
+
+    def _save_extras(self):
+        '''
+        override this method to return any extra values or tensors that should be saved
+        '''
+        return {}
 
     def load(self, checkpoint, initial_lr=None, strict=True):
         '''
@@ -144,6 +151,14 @@ class Algorithm(ABC):
         if not initial_lr is None:
             for param_group in self.optim.param_groups:
                 param_group['lr'] = initial_lr
+
+        self._load_extras(checkpoint)
+
+    def _load_extras(self, checkpoint):
+        '''
+        override this method to load any extra values or tensors that were saved
+        '''
+        return
 
     def seed(self, seed):
         torch.manual_seed(seed)
