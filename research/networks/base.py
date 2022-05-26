@@ -23,23 +23,29 @@ class ActorCriticPolicy(nn.Module):
         self.reset_actor()
         self.reset_critic()
 
-    def reset_encoder(self):
+    def reset_encoder(self, device=None):
         encoder_class = vars(research.networks)[self.encoder_class] if isinstance(self.encoder_class, str) else self.encoder_class
         if encoder_class is not None:
             self._encoder = encoder_class(self.observation_space, self.action_space, **self.encoder_kwargs)
         else:
             self._encoder = nn.Identity()
+        if device is not None:
+            self._encoder = self._encoder.to(device)
 
-    def reset_actor(self):
+    def reset_actor(self, device=None):
         observation_space = self.encoder.output_space if hasattr(self.encoder, "output_space") else self.observation_space
         actor_class = vars(research.networks)[self.actor_class] if isinstance(self.actor_class, str) else self.actor_class
         self._actor = actor_class(observation_space, self.action_space, **self.actor_kwargs)
+        if device is not None:
+            self._actor = self._actor.to(self.device)
 
-    def reset_critic(self):
+    def reset_critic(self, device=None):
         observation_space = self.encoder.output_space if hasattr(self.encoder, "output_space") else self.observation_space
         critic_class = vars(research.networks)[self.critic_class] if isinstance(self.critic_class, str) else self.critic_class
         self._critic = critic_class(observation_space, self.action_space, **self.critic_kwargs)
-
+        if device is not None:
+            self._critic = self._critic.to(device)
+    
     @property
     def actor(self):
         return self._actor
