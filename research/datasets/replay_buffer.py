@@ -303,16 +303,16 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
             idx = idx + np.arange(stack)*self.nstep
         return idx
 
-    def _get_many_idxs(self, batch_size, stack):
+    def _get_many_idxs(self, batch_size, stack, depth=0):
         idxs = np.random.randint(0, self._size - self.nstep*stack, size=int(self.sample_multiplier*batch_size)) + 1
 
         done_idxs = np.expand_dims(idxs, axis=-1) + np.arange(self.nstep*stack) - 1
         valid = np.logical_not(np.any(self._done_buffer[done_idxs], axis=-1)) # Compute along the done axis, not the index axis.
 
         valid_idxs = idxs[valid == True] # grab only the idxs that are still valid.
-        if len(valid_idxs) < batch_size:
+        if len(valid_idxs) < batch_size and depth < 100: # try a max of 100 times
             print("[research ReplayBuffer] Buffer Sampler did not recieve batch_size number of valid indices. Consider increasing sample_multiplier.")
-            return self._get_many_idxs(batch_size, stack)
+            return self._get_many_idxs(batch_size, stack, depth=depth+1)
         idxs =  valid_idxs[:batch_size] # Return the first [:batch_size] of them.
         if stack > 1:
             stack_idxs = np.arange(stack)*self.nstep
