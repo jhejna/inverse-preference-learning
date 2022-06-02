@@ -131,6 +131,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         self._reward_buffer = construct_buffer_helper(0.0, self._capacity)
         self._discount_buffer = construct_buffer_helper(0.0, self._capacity)
         self._done_buffer = construct_buffer_helper(False, self._capacity)
+        self._info_buffers = dict()
 
         # setup episode tracker to track loaded episodes
         self._episode_filenames = set()
@@ -140,7 +141,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         if self.preload_path is not None:
             self._load(self.preload_path, cleanup=False) # Load any initial episodes        
 
-    def _add_to_buffer(self, obs, action, reward, done, discount):
+    def _add_to_buffer(self, obs, action, reward, done, discount, **kwargs):
         # Can add in batches or serially.
         if isinstance(reward, list) or isinstance(reward, np.ndarray):
             num_to_add = len(reward)
@@ -169,8 +170,12 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
             add_to_buffer_helper(self._action_buffer, action)
             add_to_buffer_helper(self._reward_buffer, reward)
             add_to_buffer_helper(self._discount_buffer, discount)
-            
             add_to_buffer_helper(self._done_buffer, done)
+            for k, v in kwargs.items():
+                if k not in self._info_buffers:
+                    self._info_buffers[k] = construct_buffer_helper(v, self._capacity)
+                add_to_buffer_helper(self._info_buffers[k], v.copy())
+
             self._idx = (self._idx + num_to_add) % self._capacity
             self._size = min(self._size + num_to_add, self._capacity)
     
@@ -181,7 +186,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         else:
             self.current_ep[key].append(value)
 
-    def add(self, obs, action=None, reward=None, done=None, discount=None, next_obs=None):
+    def add(self, obs, action=None, reward=None, done=None, discount=None, next_obs=None, **kwargs):
         # Make sure that if we are adding the first transition, it is consistent
         assert (action is None) == (reward is None) == (done is None) == (discount is None)
         if action is None:
@@ -196,7 +201,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         if not self.is_parallel:
             # Deep copy to make sure we don't mess up references.
             if next_obs is None:
-                self._add_to_buffer(copy.deepcopy(obs), copy.deepcopy(action), reward, done, discount)
+                self._add_to_buffer(copy.deepcopy(obs), copy.deepcopy(action), reward, done, discount, **kwargs)
                 if self.cleanup:
                     return # Exit if we clean up and don't save the buffer.
             else:
@@ -204,8 +209,8 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
                 assert self.nstep == 1, "Adding individual transitions only supported with nstep = 1."
                 # Add a single transition to the buffer. 
                 # We have to do two calls, one for the initial observation, and one for the next one
-                self._add_to_buffer(copy.deepcopy(obs), copy.deepcopy(action), reward, done, discount)
-                self._add_to_buffer(copy.deepcopy(next_obs), copy.deepcopy(action), reward, True, discount)
+                self._add_to_buffer(copy.deepcopy(obs), copy.deepcopy(action), reward, done, discount, **kwargs) # these are dummy args
+                self._add_to_buffer(copy.deepcopy(next_obs), copy.deepcopy(action), reward, True, discount, **kwargs)
                 return # We do not add to episode streams when we add individual transitions.
 
         assert next_obs is None, "Must add via episode streams in parallel mode."
@@ -220,7 +225,8 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         self.add_to_current_ep("reward", reward)
         self.add_to_current_ep("done", done)
         self.add_to_current_ep("discount", discount)
-
+        self.add_to_current_ep("kwargs", kwargs) # supports dict spaces
+        
         if done:
             # save the episode
             keys = list(self.current_ep.keys())
@@ -272,9 +278,12 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
             # Add the episode to the buffer
             obs_keys = [key for key in episode.keys() if "obs" in key]
             action_keys = [key for key in episode.keys() if "action" in key]
+            kwargs_keys = [key for key in episode.keys() if "kwargs" in key]
             obs = {k[len("obs_"):]: episode[k] for k in obs_keys} if len(obs_keys) > 1 else episode[obs_keys[0]]
             action = {k[len("action_"):]: episode[k] for k in action_keys} if len(action_keys) > 1 else episode[action_keys[0]]
-            self._add_to_buffer(obs, action, episode["reward"], episode["done"], episode["discount"])
+            kwargs = {k[len("kwargs_"):]: episode[k] for k in kwargs_keys}
+
+            self._add_to_buffer(obs, action, episode["reward"], episode["done"], episode["discount"], **kwargs)
             # maintain the file list and storage
             self._episode_filenames.add(ep_filename)
             if cleanup:
@@ -330,8 +339,9 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         for i in range(self.nstep):
             step_reward = self._reward_buffer[idxs + i]
             reward += discount * step_reward
-            discount *= self._discount_buffer[idxs + i] * self.discount
-        return dict(obs=obs, action=action, next_obs=next_obs, reward=reward, discount=discount)
+            discount *= self._discount_buffer[idxs + i] * self.discount     
+        kwargs = {k: v[next_obs_idxs] for k, v in self._info_buffers}
+        return dict(obs=obs, action=action, next_obs=next_obs, reward=reward, discount=discount, **kwargs)
 
     def __iter__(self):
         self.setup()
