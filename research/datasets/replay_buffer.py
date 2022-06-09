@@ -340,7 +340,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
             step_reward = self._reward_buffer[idxs + i]
             reward += discount * step_reward
             discount *= self._discount_buffer[idxs + i] * self.discount     
-        kwargs = {k: v[next_obs_idxs] for k, v in self._info_buffers}
+        kwargs = {k: v[next_obs_idxs] for k, v in self._info_buffers.items()}
         return dict(obs=obs, action=action, next_obs=next_obs, reward=reward, discount=discount, **kwargs)
 
     def __iter__(self):
