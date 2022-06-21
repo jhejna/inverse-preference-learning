@@ -1,0 +1,18 @@
+{
+    "base": "configs/panda/pebble.yaml",
+    "paired_keys": [
+        ["alg_kwargs.max_feedback", "alg_kwargs.init_feedback_size"],
+        ["alg", "alg_kwargs.reset_reward_net", "checkpoint"]
+    ],
+    "alg": ["PEBBLE", "PEBBLE_MAML_Adam"],
+    "env": ["PyBulletPandaBlockPushFix-v0"],
+    "env_kwargs.state_noise": [0.001],
+    "env_kwargs.goal": [[0.35, 0.3], [0.35, -0.3]],
+    "alg_kwargs.reset_reward_net": [false, true],
+    "alg_kwargs.reward_batch_size": [256],
+    "alg_kwargs.segment_size": [25],
+    "checkpoint": [null, "path/to/pretrained/checkpoint/best_model.pt"],
+    "alg_kwargs.init_feedback_size": [20],
+    "alg_kwargs.max_feedback": [2000],
+    "seed": [1, 2]
+}

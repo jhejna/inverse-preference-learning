@@ -1,0 +1,49 @@
+# Example Config that uses almost all values
+
+alg: SoftDQN
+alg_kwargs:
+  tau: 1.0
+  train_freq: 4
+  target_freq: 1000
+  max_grad_norm: 10
+  eps_start: 0.0
+  eps_end: 0.0
+  eps_frac: 0.0
+  init_steps: 1000
+  loss: mse
+  exploration_alpha: 0.01
+  target_alpha: 0.01
+
+optim: Adam
+optim_kwargs:
+  lr: 0.00025
+
+network: DiscreteMLPCritic
+network_kwargs:
+    hidden_layers: [256, 256]
+    act: ["import", "torch.nn", "ReLU"]
+
+batch_size: null # Use collation for the replay buffer
+collate_fn: null # The collate function passed to the dataloader. None uses pytorch default.
+checkpoint: null # A checkpoint to initialize the network from.
+
+env: CartPole-v1
+
+dataset: ReplayBuffer
+dataset_kwargs:
+  discount: 0.99
+  nstep: 1
+  capacity: 500000
+  fetch_every: 500
+  batch_size: 64
+
+processor: null
+
+train_kwargs: # Arguments given to Algorithm.train
+  total_steps: 500000 # The total number of steps to train
+  log_freq: 250 # How often to log values
+  eval_freq: 1000 # How often to run evals
+  eval_ep: 10 # Number of enviornment episodes to run for evaluation, or -1 if none should be run.
+  loss_metric: reward # The validation metric that determines when to save the "best_checkpoint"
+  workers: 0 # Number of dataloader workers.
+  profile_freq: 50

@@ -1,0 +1,9 @@
+{
+    "base": "configs/metaworld/sac.yaml",
+    "paired_keys": [
+        ["env", "train_kwargs.total_steps"]
+    ],
+    "env": ["mw_door-close-v2", "mw_window-close-v2", "mw_button-press-v2", "mw_door-unlock-v2", "mw_drawer-open-v2", "mw_sweep-into-v2"],
+    "train_kwargs.total_steps": [500000, 500000, 1000000, 1000000, 1000000, 1000000],
+    "seed": [1, 2, 3, 4, 5]
+}

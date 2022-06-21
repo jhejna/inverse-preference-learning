@@ -1,0 +1,64 @@
+# Example Config that uses almost all values
+
+alg: PreferenceMAML
+alg_kwargs:
+  num_support: 32
+  num_query: 32
+  num_inner_steps: 2
+  inner_lr: 0.001
+  learn_inner_lr: True
+
+optim: Adam
+optim_kwargs:
+  lr: 0.0001
+
+network: ActorCriticRewardPolicy
+network_kwargs:
+  actor_class: DiagonalGaussianMLPActor
+  actor_kwargs:
+    hidden_layers: [256, 256, 256]
+    log_std_bounds: [-5, 2]
+    ortho_init: true
+  critic_class: ContinuousMLPCritic
+  critic_kwargs:
+    hidden_layers: [256, 256, 256]
+    num_q_fns: 2
+    ortho_init: true
+  reward_class: MetaRewardMLPEnsemble
+  reward_kwargs:
+    ensemble_size: 3
+    hidden_layers: [256, 256, 256]
+    act: ["import", "torch.nn.functional", "leaky_relu"]
+    output_act: ["import", "torch.nn.functional", "tanh"]
+
+batch_size: 4
+collate_fn: ["import", "research.algs.maml", "collate"] 
+checkpoint: null
+seed: null
+
+env: PyBulletPandaBlockPush-v0
+
+dataset: MultiTaskOracleFeedbackDataset
+dataset_kwargs:
+  paths: path/to/push/dataset
+  discount: 0.99
+  nstep: 1
+  batch_size: 64
+  replay_capacity: 200000
+  segment_capacity: 12000
+  segment_size: 25
+validation_dataset_kwargs:
+  paths: path/to/push/validation/dataset
+  segment_capacity: 4000
+
+processor: null
+
+train_kwargs: # Arguments given to Algorithm.train
+  total_steps: 100000 # The total number of steps to train
+  log_freq: 50 # How often to log values
+  eval_freq: 100 # How often to run evals
+  max_eval_steps: 25
+  eval_ep: -1 # Number of enviornment episodes to run for evaluation, or -1 if none should be run.
+  loss_metric: outer_loss # The validation metric that determines when to save the "best_checkpoint"
+  workers: 0 # Number of dataloader workers.
+  profile_freq: 50

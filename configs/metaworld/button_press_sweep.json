@@ -1,0 +1,15 @@
+{
+    "base": "configs/metaworld/pebble.yaml",
+    "paired_keys": [
+        ["alg_kwargs.max_feedback", "alg_kwargs.init_feedback_size"],
+        ["alg", "alg_kwargs.reset_reward_net", "checkpoint"]
+    ],
+    "env": ["mw_button-press-v2"],
+    "alg": ["PEBBLE", "PEBBLE", "PEBBLE_MAML_Adam"],
+    "alg_kwargs.reset_reward_net": [false, false, true],
+    "checkpoint": [null, "/path/to/pretrained/checkpoint/best_model.pt", "/path/to/pretrained/checkpoint/best_model.pt"],
+    "alg_kwargs.init_feedback_size": [8],
+    "alg_kwargs.max_feedback": [500],
+    "train_kwargs.total_steps": [1000000],
+    "seed": [1, 2, 3, 4, 5]
+}

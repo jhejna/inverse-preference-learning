@@ -1,0 +1,47 @@
+name: few-shot-pref-rl
+channels:
+  - pytorch
+  - defaults
+dependencies:
+  - python=3.8 # For polymetis compatibility
+  
+  # pytorch
+  - pytorch
+  - cpuonly
+  - torchvision
+  - torchtext
+
+  # NP Family
+  - numpy
+  - scipy
+  - networkx
+  - scikit-image
+
+  # IO
+  - imageio
+  - pillow
+  - pyyaml
+  - cloudpickle
+  - h5py
+  - absl-py
+  - pyparsing
+
+  # Plotting
+  - tensorboard
+  - pandas
+  - matplotlib
+  - seaborn
+
+  # Other
+  - pytest
+  - tqdm
+  - future
+
+  - pip
+  - pip:
+      - gym>=0.12
+      - dm_control
+      - mujoco-py<2.2,>=2.1
+      - git+https://github.com/rlworkgroup/metaworld.git@master#egg=metaworld
+      - opencv-python
+      - opencv-contrib-python

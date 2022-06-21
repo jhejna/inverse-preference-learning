@@ -1,0 +1,81 @@
+# Example Config that uses almost all values
+
+alg: PEBBLE_MAML_Adam
+alg_kwargs:
+  tau: 0.005
+  init_temperature: 0.1
+  critic_freq: 1
+  actor_freq: 1
+  target_freq: 2
+  init_steps: 10000
+  reward_freq: 20000
+  reward_epochs: 0.95
+  max_feedback: 36
+  init_feedback_size: 6
+  reward_batch_size: 100
+  reward_init_steps: null
+  segment_size: 10
+  feedback_schedule: constant
+  feedback_sample_multiplier: 10
+  feedback_replay_window: 400000
+  feedback_preload_path: null
+  reward_optim: ["import", "torch.optim", "Adam"]
+  reward_optim_kwargs:
+    lr: 0.0003
+  reset_reward_net: true
+  offline_dataset_path: null
+  reward_scale: 2 # Scale Reward to -2 to 2
+  reward_shift: -2 # shift reward to -4 to 0
+  human_feedback: true
+
+optim: Adam
+optim_kwargs:
+  lr: 0.0003
+
+network: ActorCriticRewardPolicy
+network_kwargs:
+  actor_class: DiagonalGaussianMLPActor
+  actor_kwargs:
+    hidden_layers: [256, 256]
+    log_std_bounds: [-5, 2]
+    ortho_init: true
+  critic_class: ContinuousMLPCritic
+  critic_kwargs:
+    hidden_layers: [256, 256]
+    num_q_fns: 2
+    ortho_init: true
+  reward_class: MetaRewardMLPEnsemble
+  reward_kwargs:
+    ensemble_size: 3
+    hidden_layers: [256, 256, 256]
+    act: ["import", "torch.nn.functional", "leaky_relu"]
+    output_act: ["import", "torch.nn.functional", "tanh"]
+
+batch_size: null
+collate_fn: null
+checkpoint: path/to/checkpoint/best_model.pt
+seed: null
+
+env: Goal_point_massReach_l2_random-v0
+env_kwargs:
+  task_kwargs:
+    target_pos: [-0.65, 0.85]
+
+dataset: ReplayBuffer
+dataset_kwargs:
+  discount: 0.99
+  nstep: 1
+  capacity: 400000
+  fetch_every: 500
+  batch_size: 512
+
+processor: null
+
+train_kwargs: # Arguments given to Algorithm.train
+  total_steps: 250000 # The total number of steps to train
+  log_freq: 500 # How often to log values
+  eval_freq: 8000 # How often to run evals
+  eval_ep: 15 # Number of enviornment episodes to run for evaluation, or -1 if none should be run.
+  loss_metric: reward # The validation metric that determines when to save the "best_checkpoint"
+  workers: 0 # Number of dataloader workers.
+  profile_freq: 500
