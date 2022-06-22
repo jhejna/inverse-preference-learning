@@ -19,6 +19,7 @@ class TD3(Algorithm):
                        actor_freq=2,
                        target_freq=2,
                        init_steps=1000,
+                       average_actor_q=False,
                        **kwargs):
         super().__init__(env, network_class, dataset_class, **kwargs)
         assert isinstance(self.network, ActorCriticPolicy)
@@ -31,6 +32,7 @@ class TD3(Algorithm):
         self.critic_freq = critic_freq
         self.actor_freq = actor_freq
         self.target_freq = target_freq
+        self.average_actor_q = average_actor_q
         self.action_range = (self.env.action_space.low, self.env.action_space.high)
         self.action_range_tensor = to_device(to_tensor(self.action_range), self.device)
         self.init_steps = init_steps
@@ -61,9 +63,8 @@ class TD3(Algorithm):
             target_q = batch['reward'] + batch['discount']*target_q
 
         qs = self.network.critic(batch['obs'], batch['action'])
-        ensemble_size = qs.shape[0]
-        q_loss = ensemble_size*torch.nn.functional.mse_loss(qs, target_q.expand(ensemble_size, -1)) # averages over the ensemble. No for loop!
-
+        q_loss = torch.nn.functional.mse_loss(qs, target_q.expand(qs.shape[0], -1)).mean(dim=-1).sum() # averages over the ensemble. No for loop!
+        
         self.optim['critic'].zero_grad(set_to_none=True)
         q_loss.backward()
         self.optim['critic'].step()
@@ -74,7 +75,10 @@ class TD3(Algorithm):
         obs = batch['obs'].detach() # Detach the encoder so it isn't updated.
         action = self.network.actor(obs)
         qs = self.network.critic(obs, action)
-        q = qs.mean(dim=0) # average the qs over the ensemble
+        if self.average_actor_q:
+            q = qs.mean(dim=0) # average the qs over the ensemble
+        else:
+            q = qs[0] # Take only the first Q function
         actor_loss = -q.mean()
 
         self.optim['actor'].zero_grad(set_to_none=True)
