@@ -67,26 +67,25 @@ def write_slurm_header(f, args):
 if __name__ == "__main__":
 
     parser = utils.get_parser()
-    parser.add_argument("--jobs-per-instance", default=1, type=int, help="Number of jobs to run in one slurm sbatch.")
     # Add Slurm Arguments
     for k, v in SLURM_ARGS.items():
         parser.add_argument("--" + k, **v)
 
     args = parser.parse_args()
-    jobs = utils.get_jobs(args)
+    scripts = utils.get_scripts(args)
 
     # Call python subprocess to launch the slurm jobs.
-    num_slurm_calls = len(jobs) // args.jobs_per_instance
-    remainder_jobs = len(jobs) - num_slurm_calls * args.jobs_per_instance
-    jobs_per_call = [args.jobs_per_instance for _ in range(num_slurm_calls)]
-    for i in range(remainder_jobs):
-        jobs_per_call[i] += 1 # Add the remainder jobs to spread them out as evenly as possible.
-    assert sum(jobs_per_call) == len(jobs)
-    job_index = 0
+    num_slurm_calls = len(scripts) // args.scripts_per_job
+    remainder_scripts = len(scripts) - num_slurm_calls * args.scripts_per_job
+    scripts_per_call = [args.scripts_per_job for _ in range(num_slurm_calls)]
+    for i in range(remainder_scripts):
+        scripts_per_call[i] += 1 # Add the remainder jobs to spread them out as evenly as possible.
+    assert sum(scripts_per_call) == len(scripts)
+    script_index = 0
     procs = []
-    for num_jobs in jobs_per_call:
-        current_jobs = jobs[job_index:job_index + num_jobs]
-        job_index += num_jobs
+    for num_scripts in scripts_per_call:
+        current_scripts = scripts[script_index:script_index + num_scripts]
+        script_index += num_scripts
         
         _, slurm_file = tempfile.mkstemp(text=True, prefix='job_', suffix='.sh')
         print("Launching job with slurm configuration:", slurm_file)
@@ -94,16 +93,16 @@ if __name__ == "__main__":
         with open(slurm_file, 'w+') as f:
             write_slurm_header(f, args)
             # Now that we have written the header we can launch the jobs.
-            for entry_point, script_args in current_jobs:
+            for entry_point, script_args in current_scripts:
                 command_str = ['python', entry_point]
                 for arg_name, arg_value in script_args.items():
                     command_str.append("--" + arg_name)
                     command_str.append(str(arg_value))
-                if len(current_jobs) != 1:
+                if len(current_scripts) != 1:
                     command_str.append('&')
                 command_str = ' '.join(command_str) + '\n'
                 f.write(command_str)
-            if len(current_jobs) != 1:
+            if len(current_scripts) != 1:
                 f.write('wait')
             
             # Now launch the job
@@ -111,4 +110,3 @@ if __name__ == "__main__":
             procs.append(proc)
 
     exit_codes = [p.wait() for p in procs]
-
