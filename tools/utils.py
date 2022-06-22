@@ -24,7 +24,8 @@ def get_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("--entry-point", type=str, action='append', default=None)
     parser.add_argument("--arguments", metavar="KEY=VALUE", nargs='+', action='append', help="Set kv pairs used as args for the entry point script.")
-    parser.add_argument("--seeds-per-job", type=int, default=1)
+    parser.add_argument("--seeds-per-script", type=int, default=1)
+    parser.add_argument("--scripts-per-job", type=int, default=None, help="configs")
     return parser
 
 def parse_var(s):
@@ -50,8 +51,8 @@ def parse_vars(items):
             d[key] = value
     return d
 
-def get_jobs(args):
-    all_jobs = []
+def get_scripts(args):
+    all_scripts = []
 
     if args.entry_point is None:
         # If entry point wasn't provided use the default
@@ -77,34 +78,34 @@ def get_jobs(args):
             else:
                 configs_and_paths = [(script_args['config'], script_args['path'])]
 
-            jobs = [{"config": c, "path" : p} for c, p in configs_and_paths]
+            scripts = [{"config": c, "path" : p} for c, p in configs_and_paths]
             for arg_name in script_args.keys():
-                if not arg_name in jobs[0]:
+                if not arg_name in scripts[0]:
                     print("Warning: argument", arg_name, "being added globally to all python calls with value", script_args[arg_name])
-                    for job in jobs:
-                        job[arg_name] = script_args[arg_name]
+                    for script in scripts:
+                        script[arg_name] = script_args[arg_name]
         else:
-            # we have the default configuration. When there are multiple jobs per instance, 
-            # We replicate the same job many times on the machine.
-            jobs = [script_args]
+            # we have the default configuration. When there are multiple scripts per job, 
+            # We replicate the same script many times on the machine.
+            scripts = [script_args]
         
-        if args.seeds_per_job > 1:
+        if args.seeds_per_script > 1:
             # copy all of the configratuions and add seeds
-            seeded_jobs = []
-            for job in jobs:
-                seed = int(job.get('seed'))
-                for i in range(args.seeds_per_job):
-                    seeded_job = job.copy() # Should be a shallow dictionary, so copy OK
-                    seeded_job['seed'] = seed + i
-                    seeded_jobs.append(seeded_job)
+            seeded_scripts = []
+            for script in scripts:
+                seed = int(script.get('seed'))
+                for i in range(args.seeds_per_script):
+                    seeded_script = script.copy() # Should be a shallow dictionary, so copy OK
+                    seeded_script['seed'] = seed + i
+                    seeded_scripts.append(seeded_script)
             # Replace regular jobs with the seeded variants.
-            jobs = seeded_jobs
+            scripts = seeded_scripts
 
         # add the entry point
-        jobs = [(entry_point, job_args) for job_args in jobs]
-        all_jobs.extend(jobs)
+        scripts = [(entry_point, script_args) for script_args in scripts]
+        all_scripts.extend(scripts)
 
-    return all_jobs
+    return all_scripts
 
 class Config(object):
     '''
