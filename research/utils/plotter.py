@@ -69,7 +69,6 @@ def create_plot(paths, labels, ax=None, title=None, color_map=None, xlabel=None,
 
     sns.despine(ax=ax)
 
-
 def plot_from_config(config_path):
     '''
     --- Configuration design for plot files ---
@@ -106,6 +105,7 @@ def plot_from_config(config_path):
         config = yaml.load(f, Loader=yaml.Loader)
 
     grid_shape = config['grid_shape']
+    rect = [0, 0, 1, 1]
 
     # Note that grid shape is given as (rows, cols)
     assert len(config['plots']) == grid_shape[0] * grid_shape[1]
@@ -155,12 +155,13 @@ def plot_from_config(config_path):
             axins.axis('off')
 
     if config.get('title'):
-        fig.suptitle(config.get('title'))
+        fig.suptitle(config.get('title'), y=1.0)
+        rect[3] -= 0.01
 
     # If the legend is set to the bottom do it here
     if legend_pos == "bottom":
         handles, labels = ax.get_legend_handles_labels()
         fig.legend(handles, labels, loc='lower left', ncol=len(handles), bbox_to_anchor=(0.25, -0.01))
-        plt.tight_layout(pad=0, rect=(0, 0.05, 1, 1))
-    else:
-        plt.tight_layout(pad=0)
+        rect[1] += 0.05
+        
+    plt.tight_layout(pad=0, rect=rect)
