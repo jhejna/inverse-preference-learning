@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 import seaborn as sns
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 LOG_FILE_NAME = "log.csv"
 
@@ -56,7 +57,6 @@ def create_plot(paths, labels, ax=None, title=None, color_map=None, xlabel=None,
             run_paths = [os.path.join(path, run) for run in os.listdir(path)]
         else:
             run_paths = [path]
-        
         plot_run(run_paths, label, ax=ax, color=color_map[label], **kwargs)
 
     ax.set_title(title, pad=1)
@@ -123,16 +123,16 @@ def plot_from_config(config_path):
     fig, axes = plt.subplots(*grid_shape, figsize=figsize)
 
     # Determine if we should include xlabels or ylabels
-    use_xlabels = any(['xlabel' in plot['config'] for plot in config['plots'].values()])
-    use_ylabels = any(['ylabel' in plot['config'] for plot in config['plots'].values()])
+    use_xlabels = any(['xlabel' in plot.get('kwargs', {}) for plot in config['plots'].values()])
+    use_ylabels = any(['ylabel' in plot.get('kwargs', {}) for plot in config['plots'].values()])
 
     for i, (plot_title, plot_config) in enumerate(config['plots'].items()):
-        y_index, x_index = i // grid_shape[0], i % grid_shape[0]
+        y_index, x_index = i // grid_shape[1], i % grid_shape[1]
         ax = axes[y_index, x_index]
 
         paths, labels = list(plot_config['methods'].values()), list(plot_config['methods'].keys())
         plot_title = plot_title if config.get('use_subplot_titles') else None
-        plot_kwargs = plot_config.get('kwargs').copy() if plot_config.get('kwargs') is not None else {}
+        plot_kwargs = plot_config.get('kwargs', {}).copy()
         plot_kwargs.update(config['kwargs'])
 
         create_plot(paths, labels, ax, plot_title, color_map=config.get('color_map'), **plot_kwargs)
@@ -145,11 +145,14 @@ def plot_from_config(config_path):
             ax.get_legend().remove()
 
         # Check to see if we can place an image in the corner of the plot.
-        if 'image' in plot_config:
+        if plot_config.get('image') is not None:
+            import matplotlib.image as mpimg
             # use inset axes to create an inset image
             image_x = 0.75 * figsize[0] / grid_shape[1]
-            inset_ax = ax.inset_axes([image_x, 0.0, 0.25, 0.15])
-            inset_ax.imshow(plot_config['image'])
+            axins = inset_axes(ax, width="33%", height="33%", loc=4, borderpad=0)
+            image = mpimg.imread(plot_config['image'])
+            axins.imshow(image)
+            axins.axis('off')
 
     if config.get('title'):
         fig.suptitle(config.get('title'))
@@ -158,6 +161,6 @@ def plot_from_config(config_path):
     if legend_pos == "bottom":
         handles, labels = ax.get_legend_handles_labels()
         fig.legend(handles, labels, loc='lower left', ncol=len(handles), bbox_to_anchor=(0.25, -0.01))
-        plt.tight_layout(pad=0, rect=(0, 0.08, 1, 1))
+        plt.tight_layout(pad=0, rect=(0, 0.05, 1, 1))
     else:
         plt.tight_layout(pad=0)

@@ -22,13 +22,11 @@ if __name__ == "__main__":
 
     paths = args.path
 
-    if len(paths) == 0 and paths[0].endswith('.yaml'):
+    if len(paths) == 1 and paths[0].endswith('.yaml'):
         # We are creating a plot via config
         plotter.plot_from_config(paths[0])
         plt.savefig(args.output, dpi=300) # Increase DPI for higher res.
-        
     else:
-
         # Check to see if we should auto-expand the path.
         # Do this only if the number of paths specified is one and each sub-path is a directory
         if len(paths) == 1 and all([os.path.isdir(os.path.join(paths[0], d)) for d in os.listdir(paths[0])]):
