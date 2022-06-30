@@ -82,7 +82,11 @@ class Algorithm(ABC):
 
         # Load a check point if we have one
         if checkpoint:
-            self.load(checkpoint, strict=True)
+            try:
+                self.load(checkpoint, strict=True)
+            except:
+                print("[research] Warning: Loading in non-strict mode, thus optimizer may be skipped.")
+                self.load(checkpoint, strict=False)
 
     def setup_processor(self, processor_class, processor_kwargs):
         if processor_class is None:
