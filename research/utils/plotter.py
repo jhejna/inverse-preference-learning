@@ -128,7 +128,7 @@ def plot_from_config(config_path):
 
     for i, (plot_title, plot_config) in enumerate(config['plots'].items()):
         y_index, x_index = i // grid_shape[1], i % grid_shape[1]
-        ax = axes[y_index, x_index]
+        ax = axes.flat[i]
 
         paths, labels = list(plot_config['methods'].values()), list(plot_config['methods'].keys())
         plot_title = plot_title if config.get('use_subplot_titles') else None
