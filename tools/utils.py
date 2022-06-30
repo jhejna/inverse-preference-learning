@@ -24,7 +24,8 @@ def get_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("--entry-point", type=str, action='append', default=None)
     parser.add_argument("--arguments", metavar="KEY=VALUE", nargs='+', action='append', help="Set kv pairs used as args for the entry point script.")
-    parser.add_argument("--seeds-per-job", type=int, default=1)
+    parser.add_argument("--seeds-per-script", type=int, default=1)
+    parser.add_argument("--scripts-per-job", type=int, default=None, help="configs")
     return parser
 
 def parse_var(s):
@@ -50,8 +51,13 @@ def parse_vars(items):
             d[key] = value
     return d
 
+<<<<<<< HEAD
 def get_jobs(args):
     all_jobs = []
+=======
+def get_scripts(args):
+    all_scripts = []
+>>>>>>> 7c642a01d48b463eee9781661d3f73ab4c4020f8
 
     if args.entry_point is None:
         # If entry point wasn't provided use the default
@@ -77,6 +83,7 @@ def get_jobs(args):
             else:
                 configs_and_paths = [(script_args['config'], script_args['path'])]
 
+<<<<<<< HEAD
             jobs = [{"config": c, "path" : p} for c, p in configs_and_paths]
             for arg_name in script_args.keys():
                 if not arg_name in jobs[0]:
@@ -105,6 +112,36 @@ def get_jobs(args):
         all_jobs.extend(jobs)
 
     return all_jobs
+=======
+            scripts = [{"config": c, "path" : p} for c, p in configs_and_paths]
+            for arg_name in script_args.keys():
+                if not arg_name in scripts[0]:
+                    print("Warning: argument", arg_name, "being added globally to all python calls with value", script_args[arg_name])
+                    for script in scripts:
+                        script[arg_name] = script_args[arg_name]
+        else:
+            # we have the default configuration. When there are multiple scripts per job, 
+            # We replicate the same script many times on the machine.
+            scripts = [script_args]
+        
+        if args.seeds_per_script > 1:
+            # copy all of the configratuions and add seeds
+            seeded_scripts = []
+            for script in scripts:
+                seed = int(script.get('seed'))
+                for i in range(args.seeds_per_script):
+                    seeded_script = script.copy() # Should be a shallow dictionary, so copy OK
+                    seeded_script['seed'] = seed + i
+                    seeded_scripts.append(seeded_script)
+            # Replace regular jobs with the seeded variants.
+            scripts = seeded_scripts
+
+        # add the entry point
+        scripts = [(entry_point, script_args) for script_args in scripts]
+        all_scripts.extend(scripts)
+
+    return all_scripts
+>>>>>>> 7c642a01d48b463eee9781661d3f73ab4c4020f8
 
 class Config(object):
     '''
@@ -238,6 +275,7 @@ class Experiment(dict):
                 # Recursively update the current config until we find the value.
                 while len(config_path) > 1:
                     if not config_path[0] in config_dict:
+<<<<<<< HEAD
                         print("[research]: Warning, adding key", str(k), "to config, which was not originally included.")
                         # raise ValueError("Experiment specified key not in config: " + str(k))
                     config_dict = config_dict[config_path[0]]
@@ -245,6 +283,13 @@ class Experiment(dict):
                 if not config_path[0] in config_dict:
                         print("[research]: Warning, adding key", str(k), "to config, which was not originally included.")
                         # raise ValueError("Experiment specified key not in config: " + str(k))
+=======
+                        raise ValueError("Experiment specified key not in config: " + str(k))
+                    config_dict = config_dict[config_path[0]]
+                    config_path.pop(0)
+                if not config_path[0] in config_dict:
+                        raise ValueError("Experiment specified key not in config: " + str(k))
+>>>>>>> 7c642a01d48b463eee9781661d3f73ab4c4020f8
                 # Finally set the value
                 config_dict[config_path[0]] = v
                 
@@ -255,10 +300,14 @@ class Experiment(dict):
                 elif len(self[k]) > 1:
                     # Add it to the path name if it is different for each run.
                     if isinstance(v, str):
+<<<<<<< HEAD
                         if '/' in v:
                             str_val = os.path.basename(v)
                         else:
                             str_val = v
+=======
+                        str_val = v
+>>>>>>> 7c642a01d48b463eee9781661d3f73ab4c4020f8
                     elif isinstance(v, int) or isinstance(v, float) or isinstance(v, bool) or v is None:
                         str_val = str(v)
                     elif isinstance(v, list):

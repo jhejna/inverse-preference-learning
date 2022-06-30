@@ -51,12 +51,12 @@ if __name__ == "__main__":
     frames = []
     for ep in range(args.num_ep):
         obs = env.reset()
-        done, success = False, False
-        ep_reward, ep_length, max_length = 0, 0, args.max_len
+        done = False
+        ep_reward, ep_length = 0, 0
         frame = env.render(**render_kwargs)
         if save_gif:
             frames.append(frame)
-        while not done and ep_length <= max_length:
+        while not done and ep_length <= args.max_len:
             action = model.predict(obs)
             obs, reward, done, info = env.step(action)
             frame = env.render(**render_kwargs)
@@ -64,12 +64,11 @@ if __name__ == "__main__":
                 frames.append(frame)
             ep_reward += reward
             ep_length += 1
-            if ('success' in info and info['success']) or ('is_success' in info and info['is_success']) and not success:
+            if ('success' in info and info['success']) or ('is_success' in info and info['is_success']):
                 print("[research] Episode success, terminating early.")
-                success = True
-                max_length = min(max_length, ep_length + 16)
+                done = True
         ep_rewards.append(ep_reward)
-        ep_lengths.append(ep_length)
+        ep_length.append(ep_length)
         print("Finished Episode. Reward:", ep_reward, "Length:", ep_length)
 
     print("Overall. Reward:", np.mean(ep_rewards), "Length:", np.mean(ep_lengths))
@@ -77,4 +76,3 @@ if __name__ == "__main__":
         # Cut the frames 
         print("Saving a gif of", len(frames), "Frames to", args.output)
         imageio.mimsave(args.output, frames[::args.every_n_frames])
-

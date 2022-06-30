@@ -67,8 +67,7 @@ class SAC(Algorithm):
             target_q = batch['reward'] + batch['discount']*target_v
 
         qs = self.network.critic(batch['obs'], batch['action'])
-        ensemble_size = qs.shape[0]
-        q_loss = ensemble_size*torch.nn.functional.mse_loss(qs, target_q.expand(ensemble_size, -1)) # averages over the ensemble. No for loop!
+        q_loss = torch.nn.functional.mse_loss(qs, target_q.expand(qs.shape[0], -1)).mean(dim=-1).sum() # averages over the ensemble. No for loop!
 
         self.optim['critic'].zero_grad(set_to_none=True)
         q_loss.backward()
@@ -196,5 +195,5 @@ class SAC(Algorithm):
     def _save_extras(self):
         return {'log_alpha': self.log_alpha}
 
-    def _load_extras(self, checkpoint, strict=True):
+    def _load_extras(self, checkpoint):
         self.log_alpha.data = checkpoint['log_alpha'].data

@@ -350,4 +350,3 @@ class DMControlEnv(gym.Env):
         np.copyto(self._env._physics.data.qpos, obs['position'])
         np.copyto(self._env._physics.data.qvel, obs['velocity'])
         self._env._physics.forward()
-        

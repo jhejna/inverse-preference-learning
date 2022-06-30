@@ -14,8 +14,8 @@ import os
 from calibrate import load_coefficients, IMG_HEIGHT, IMG_WIDTH, REFERENCE_ID
 
 MARKER_SIZE = 0.04
-ROBOT_TRANSLATION_1 = np.array([ 0.39397444, -0.01577215, -0.00178543], dtype=np.float64)
-ROBOT_TRANSLATION_2 = np.array([0.4208286,  -0.00772413,  0.00511138], dtype=np.float64)
+ROBOT_TRANSLATION_1 = np.array([ 0.39397444, -0.01577215, -0.00178543], dtype=np.float64) # this is output by the calibration script
+ROBOT_TRANSLATION_2 = np.array([0.4208286,  -0.00772413,  0.00511138], dtype=np.float64) # this is output by the calibration script
 OFFSET = np.array([0.0, -0.0, 0.0])
 CUBE_IDS = [26, 27, 28, 29, 30, 31]
 SRs = ["realsenseSR_1", "realsenseSR_2"]

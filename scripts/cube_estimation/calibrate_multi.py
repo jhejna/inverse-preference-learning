@@ -11,9 +11,9 @@ IMG_HEIGHT, IMG_WIDTH = 480, 640
 MARKER_SIZE = 0.06
 CUBE_MARKER_SIZE = 0.04
 REFERENCE_ID = 25
-DESIRED_ZERO = np.array([0.395, -0.01, 0.025]) # Each camera should output this
-CUBE_IDS = [26, 27, 28, 29, 30, 31]
-SRs = ["realsenseSR_1", "realsenseSR_2"]
+DESIRED_ZERO = np.array([0.395, -0.01, 0.025]) # The known 3D position of the reference marker.
+CUBE_IDS = [26, 27, 28, 29, 30, 31] # The IDs of the markers used on the cube
+SRs = ["realsenseSR_1", "realsenseSR_2"] # Modify to be the IDs of your real sense camera
 
 import pyrealsense2 as rs
 

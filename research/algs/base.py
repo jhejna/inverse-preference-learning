@@ -133,7 +133,7 @@ class Algorithm(ABC):
         '''
         Loads the model and its associated checkpoints.
         '''
-        print("[research] loaded checkpoint:", checkpoint)
+        print("[research] loading checkpoint:", checkpoint)
         checkpoint = torch.load(checkpoint, map_location=self.device)
         self.network.load_state_dict(checkpoint['network'], strict=strict)
 
@@ -150,7 +150,7 @@ class Algorithm(ABC):
                     raise e
                 else:
                     continue
-        
+                
         # make sure that we reset the learning rate in case we decide to not use scheduling for finetuning.
         if not initial_lr is None:
             for param_group in self.optim.param_groups:
