@@ -149,7 +149,7 @@ def plot_from_config(config_path):
             import matplotlib.image as mpimg
             # use inset axes to create an inset image
             image_x = 0.75 * figsize[0] / grid_shape[1]
-            axins = inset_axes(ax, width="33%", height="33%", loc=4, borderpad=0)
+            axins = inset_axes(ax, width="35%", height="35%", loc=4, borderpad=0.2)
             image = mpimg.imread(plot_config['image'])
             axins.imshow(image)
             axins.axis('off')
