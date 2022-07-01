@@ -23,7 +23,7 @@ class PreferenceMAML(Algorithm):
         self.inner_lr = inner_lr
         self.learn_inner_lr = learn_inner_lr
         super().__init__(env, network_class, dataset_class, **kwargs)
-        self.reward_criterion = torch.nn.CrossEntropyLoss()
+        self.reward_criterion = torch.nn.BCEWithLogitsLoss(reduction='none')
         self.num_support = num_support
         self.num_query = num_query
         self.num_inner_steps = num_inner_steps
@@ -64,19 +64,19 @@ class PreferenceMAML(Algorithm):
             out_shape = (B, S)
         assert B_times_S == B*S, "shapes incorrect"
 
-        r_hat1 = r_hat1.view(*out_shape).sum(dim=-1) 
-        r_hat2 = r_hat2.view(*out_shape).sum(dim=-1)
-        logits = torch.stack((r_hat1, r_hat2), dim=-1) # (E, B, 2) or (B, 2)
-        labels = batch['label'].long()
-        if len(logits.shape) == 3:
-            # reshape the labels and logits
-            logits = logits.permute(1, 2, 0) # Shape (B, 2, E) to follow nn.CrossEntropyLoss
-            labels = labels.unsqueeze(-1).expand(-1, logits.shape[-1]) # Shape (B, E)
-        loss = self.reward_criterion(logits, labels)
+        r_hat1 = r_hat1.view(*out_shape).sum(dim=-1) # Shape (E, B) or (B,)
+        r_hat2 = r_hat2.view(*out_shape).sum(dim=-1) # Shape (E, B) or (B,)
+        logits = r_hat2 - r_hat1 
+        labels = batch['label'].float()
+
+        loss = self.reward_criterion(logits, labels).mean(dim=-1)
+        if len(loss.shape) == 2:
+            loss = loss.sum(dim=0)
+
         # Compute the accuracy
         with torch.no_grad():
-            pred = logits.argmax(dim=1) # Now this is shape (B,)
-            accuracy = (pred == labels).float().mean().item()
+            pred = (logits > 0).to(dtype=labels.dtype)
+            accuracy = (torch.round(pred) == torch.round(labels)).float().mean().item()
         return loss, accuracy
 
     def _inner_step(self, batch, train=True):

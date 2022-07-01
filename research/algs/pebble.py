@@ -9,7 +9,7 @@ import collections
 import imageio
 
 from .base import Algorithm
-from research.networks.base import ActorCriticPolicy
+from research.networks.base import ActorCriticRewardPolicy
 from research.utils.utils import to_tensor, to_device, unsqueeze
 from research.datasets.feedback_buffer import FeedbackLabelDataset
 from research.datasets.replay_buffer import ReplayBuffer
@@ -96,8 +96,9 @@ class PEBBLE(Algorithm):
         self.init_temperature = init_temperature
         self.reward_optim = reward_optim
         self.reward_optim_kwargs = reward_optim_kwargs
-        # Save the checkpoint path
         super().__init__(env, network_class, dataset_class, **kwargs)
+        assert isinstance(self.network, ActorCriticRewardPolicy)
+
         # Save extra parameters
         self.tau = tau
         self.critic_freq = critic_freq
@@ -134,7 +135,7 @@ class PEBBLE(Algorithm):
         # Reward Learning Parameters
         self.reward_epochs = reward_epochs
         self.reward_batch_size = reward_batch_size
-        self.reward_criterion = torch.nn.CrossEntropyLoss()
+        self.reward_criterion = torch.nn.BCEWithLogitsLoss(reduction='none')
         self.reset_reward_net = reset_reward_net
         
         # Checkpointing
@@ -231,8 +232,7 @@ class PEBBLE(Algorithm):
             target_q = reward + batch['discount']*target_v
 
         qs = self.network.critic(batch['obs'], batch['action'])
-        ensemble_size = qs.shape[0]
-        q_loss = ensemble_size*torch.nn.functional.mse_loss(qs, target_q.expand(ensemble_size, -1)) # averages over the ensemble. No for loop!
+        q_loss = torch.nn.functional.mse_loss(qs, target_q.expand(qs.shape[0], -1)).mean(dim=-1).sum() # averages over the ensemble. No for loop!
 
         self.optim['critic'].zero_grad(set_to_none=True)
         q_loss.backward()
@@ -289,8 +289,7 @@ class PEBBLE(Algorithm):
             target_q = state_entropy + batch['discount']*target_v
 
         qs = self.network.critic(batch['obs'], batch['action'])
-        ensemble_size = qs.shape[0]
-        q_loss = ensemble_size*torch.nn.functional.mse_loss(qs, target_q.expand(ensemble_size, -1)) # averages over the ensemble. No for loop!
+        q_loss = torch.nn.functional.mse_loss(qs, target_q.expand(qs.shape[0], -1)).mean(dim=-1).sum() # averages over the ensemble. No for loop!
 
         self.optim['critic'].zero_grad(set_to_none=True)
         q_loss.backward()
@@ -309,7 +308,7 @@ class PEBBLE(Algorithm):
         assert B_times_S == B*S, "Shapes were incorrect"
         r_hat1 = r_hat1.view(E, B, S).sum(dim=2) # Now should be (E, B)
         r_hat2 = r_hat2.view(E, B, S).sum(dim=2) # Now should be (E, B)
-        logits = torch.stack((r_hat1, r_hat2), dim=2) # (E, B, 2)
+        logits = r_hat2 - r_hat1 
         return logits
         
     def _oracle_label(self, batch):
@@ -376,7 +375,7 @@ class PEBBLE(Algorithm):
         with torch.no_grad():
             tensor_batch = to_device(to_tensor(batch), self.device)
             logits = self._get_reward_logits(tensor_batch)
-            probs = torch.nn.functional.softmax(logits, dim=2)[:, :, 1] # Take index for seg_1 < seg_2
+            probs = torch.sigmoid(logits)
             probs = probs.cpu().numpy() # Shape (E, B)
         disagreement = np.std(probs, axis=0) # Compute along the ensemble axis
         top_k_index = (-disagreement).argsort()[:batch_size]
@@ -425,10 +424,9 @@ class PEBBLE(Algorithm):
             for batch in self.feedback_dataloader:
                 batch = to_device(batch, self.device)
                 self.optim['reward'].zero_grad(set_to_none=True)
-                logits = self._get_reward_logits(batch) # Shape (E, B, 2)
-                logits = logits.permute(1, 2, 0) # Shape (B, 2, E) to follow nn.CrossEntropyLoss
-                labels = batch['label'].long().unsqueeze(-1).expand(-1, logits.shape[-1]) # Shape (B, E)
-                loss = self.reward_criterion(logits, labels)
+                logits = self._get_reward_logits(batch) # Shape (E, B)
+                labels = batch['label'].float().unsqueeze(0).expand(logits.shape[0], -1) # Shape (E, B)
+                loss = self.reward_criterion(logits, labels).mean(dim=-1).sum(dim=0) # Average on B, sum on E
                 loss.backward()
                 self.optim['reward'].step()
                 
@@ -679,10 +677,9 @@ class PEBBLE_MAML(PEBBLE):
             losses, accuracies = [], []
             for batch in self.feedback_dataloader:
                 batch = to_device(batch, self.device)
-                logits = self._get_reward_logits(batch) # Shape (E, B, 2)
-                logits = logits.permute(1, 2, 0) # Shape (B, 2, E) to follow nn.CrossEntropyLoss
-                labels = batch['label'].long().unsqueeze(-1).expand(-1, logits.shape[-1]) # Shape (B, E)
-                loss = self.reward_criterion(logits, labels)
+                logits = self._get_reward_logits(batch) # Shape (E, B)
+                labels = batch['label'].float().unsqueeze(0).expand(logits.shape[0], -1) # Shape (E, B)
+                loss = self.reward_criterion(logits, labels).mean(dim=-1).sum(dim=0) # Average on B, sum on E
                 # This runs the MAML style adaptation at each iteration.
                 grads  = torch.autograd.grad(loss, self.network.reward.params.values(), create_graph=False)
                 for j, (k, v) in enumerate(self.network.reward.params.items()):
@@ -730,10 +727,9 @@ class PEBBLE_MAML_Adam(PEBBLE_MAML):
             losses, accuracies = [], []
             for batch in self.feedback_dataloader:
                 batch = to_device(batch, self.device)
-                logits = self._get_reward_logits(batch) # Shape (E, B, 2)
-                logits = logits.permute(1, 2, 0) # Shape (B, 2, E) to follow nn.CrossEntropyLoss
-                labels = batch['label'].long().unsqueeze(-1).expand(-1, logits.shape[-1]) # Shape (B, E)
-                loss = self.reward_criterion(logits, labels)
+                logits = self._get_reward_logits(batch) # Shape (E, B)
+                labels = batch['label'].float().unsqueeze(0).expand(logits.shape[0], -1) # Shape (E, B)
+                loss = self.reward_criterion(logits, labels).mean(dim=-1).sum(dim=0) # Average on B, sum on E
                 # This runs the MAML style adaptation at each iteration.
                 grads  = torch.autograd.grad(loss, self.network.reward.params.values(), create_graph=False)
                 for j, (k, v) in enumerate(self.network.reward.params.items()):
@@ -767,10 +763,9 @@ class PEBBLE_MAML_Adam(PEBBLE_MAML):
             for batch in self.feedback_dataloader:
                 batch = to_device(batch, self.device)
                 self.optim['reward'].zero_grad(set_to_none=True)
-                logits = self._get_reward_logits(batch) # Shape (E, B, 2)
-                logits = logits.permute(1, 2, 0) # Shape (B, 2, E) to follow nn.CrossEntropyLoss
-                labels = batch['label'].long().unsqueeze(-1).expand(-1, logits.shape[-1]) # Shape (B, E)
-                loss = self.reward_criterion(logits, labels)
+                logits = self._get_reward_logits(batch) # Shape (E, B)
+                labels = batch['label'].float().unsqueeze(0).expand(logits.shape[0], -1) # Shape (E, B)
+                loss = self.reward_criterion(logits, labels).mean(dim=-1).sum(dim=0) # Average on B, sum on E
                 loss.backward()
                 self.optim['reward'].step()
                 losses.append(loss.item())
@@ -810,8 +805,7 @@ class PEBBLE_DataCollect(PEBBLE):
             target_q = reward + batch['discount']*target_v
 
         qs = self.network.critic(batch['obs'], batch['action'])
-        ensemble_size = qs.shape[0]
-        q_loss = ensemble_size*torch.nn.functional.mse_loss(qs, target_q.expand(ensemble_size, -1)) # averages over the ensemble. No for loop!
+        q_loss = torch.nn.functional.mse_loss(qs, target_q.expand(qs.shape[0], -1)).mean(dim=-1).sum() # averages over the ensemble. No for loop!
 
         self.optim['critic'].zero_grad(set_to_none=True)
         q_loss.backward()
