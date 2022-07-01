@@ -104,9 +104,9 @@ if __name__ == "__main__":
                 f.write(command_str)
             if len(current_scripts) != 1:
                 f.write('wait')
-            
-            # Now launch the job
-            proc = subprocess.Popen(['sbatch', slurm_file])
-            procs.append(proc)
+        
+        # Now launch the job
+        proc = subprocess.Popen(['sbatch', slurm_file])
+        procs.append(proc)
 
     exit_codes = [p.wait() for p in procs]
