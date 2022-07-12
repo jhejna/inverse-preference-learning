@@ -7,7 +7,7 @@ Examples are as follows:
 import research
 import torch
 
-class Processor(object):
+class Processor(torch.nn.Module):
     '''
     This is the base processor class. All processors should inherit from it.
     '''
@@ -17,24 +17,12 @@ class Processor(object):
         self.observation_space = observation_space
         self.action_space = action_space
 
-    def __call__(self, batch):
-        # Perform operations on the values. This may be normalization etc.
-        raise NotImplementedError
-
     def unprocess(self, batch):
         raise NotImplementedError
 
     @property
     def supports_gpu(self):
         return True
-
-    def train(self, mode=True):
-        if not isinstance(mode, bool):
-            raise ValueError("Training mode is expected to be a boolean")
-        self.training = mode
-        
-    def eval(self):
-        self.train(mode=False)
 
 class IdentityProcessor(Processor):
     '''
@@ -52,13 +40,14 @@ class ComposeProcessor(Processor):
     '''
     def __init__(self, observation_space, action_space, processors=[("IdentityProcessor"), {}]):
         super().__init__(observation_space, action_space)
-        self.processors = []
+        processors = []
         for processor_class, processor_kwargs in processors:
             processor_class = vars(research.processors)[processor_class]
             processor = processor_class(self.observation_space, self.action_space, **processor_kwargs)
-            self.processors.append(processor)
+            processors.append(processor)
+        self.processors = torch.nn.ModuleList(processors)
 
-    def __call__(self, batch):
+    def forward(self, batch):
         for processor in self.processors:
             batch = processor(batch)
         return batch

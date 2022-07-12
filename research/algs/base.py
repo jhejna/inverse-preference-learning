@@ -85,14 +85,35 @@ class Algorithm(ABC):
                 print("[research] Warning: Loading in non-strict mode, thus optimizer may be skipped.")
                 self.load(checkpoint, strict=False)
 
+    @property
+    def action_space(self):
+        if self.env is not None:
+            return self.env.action_space
+        elif self.eval_env is not None:
+            return self.eval_env.action_space
+        else:
+            raise ValueError("Neither env or eval_env was provided.")
+
+    @property
+    def observation_space(self):
+        if self.env is not None:
+            return self.env.observation_space
+        elif self.eval_env is not None:
+            return self.eval_env.observation_space
+        else:
+            raise ValueError("Neither env or eval_env was provided.")
+
     def setup_processor(self, processor_class, processor_kwargs):
         if processor_class is None:
-            self.processor = IdentityProcessor(self.env.observation_space, self.env.action_space)
+            self.processor = IdentityProcessor(self.observation_space, self.action_space)
         else:
-            self.processor = processor_class(self.env.observation_space, self.env.action_space, **processor_kwargs)
+            self.processor = processor_class(self.observation_space, self.action_space, **processor_kwargs)
+        
+        if self.processor.supports_gpu: # move it to device if it supports GPU computation.
+            self.processor = self.processor.to(self.device)
 
     def setup_network(self, network_class, network_kwargs):
-        self.network = network_class(self.env.observation_space, self.env.action_space, **network_kwargs).to(self.device)
+        self.network = network_class(self.observation_space, self.action_space, **network_kwargs).to(self.device)
 
     def setup_optimizers(self, optim_class, optim_kwargs):
         # Default optimizer initialization
@@ -103,11 +124,11 @@ class Algorithm(ABC):
         Setup the datasets. Note that this is called only during the learn method and thus doesn't take any arguments.
         Everything must be saved apriori. This is done to ensure that we don't need to load all of the data to load the model.
         '''
-        self.dataset = self.dataset_class(self.env.observation_space, self.env.action_space, **self.dataset_kwargs)
+        self.dataset = self.dataset_class(self.observation_space, self.action_space, **self.dataset_kwargs)
         if not self.validation_dataset_kwargs is None:
             validation_dataset_kwargs = copy.deepcopy(self.dataset_kwargs)
             validation_dataset_kwargs.update(self.validation_dataset_kwargs)
-            self.validation_dataset = self.dataset_class(self.env.observation_space, self.env.action_space, **validation_dataset_kwargs)
+            self.validation_dataset = self.dataset_class(self.observation_space, self.action_space, **validation_dataset_kwargs)
         else:
             self.validation_dataset = None
 
@@ -116,7 +137,7 @@ class Algorithm(ABC):
         Saves a checkpoint of the model and the optimizers
         '''
         optim = {k: v.state_dict() for k, v in self.optim.items()}
-        save_dict = {"network" : self.network.state_dict(), "optim": optim}
+        save_dict = {"network" : self.network.state_dict(), "optim": optim, "processor": self.processor.state_dict()}
         save_dict.update(self._save_extras())
         torch.save(save_dict, os.path.join(path, extension + ".pt"))
 
@@ -133,7 +154,8 @@ class Algorithm(ABC):
         print("[research] loading checkpoint:", checkpoint)
         checkpoint = torch.load(checkpoint, map_location=self.device)
         self.network.load_state_dict(checkpoint['network'], strict=strict)
-
+        self.processor.load_state_dict(checkpoint['processor'], strict=strict)
+        
         for k, v in self.optim.items():
             if strict and k not in checkpoint['optim']:
                 raise ValueError("Strict mode was enabled, but couldn't find optimizer key")
