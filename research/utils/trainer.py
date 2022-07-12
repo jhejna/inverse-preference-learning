@@ -18,15 +18,6 @@ def get_env(env, env_kwargs, wrapper, wrapper_kwargs):
         env = vars(research.envs)[wrapper](env, **wrapper_kwargs)
     return env
 
-def get_env_from_config(config):
-    # Try to get the environment
-    assert isinstance(config, Config)
-    env = config['env']
-    env_kwargs = config['env_kwargs']
-    wrapper = config['wrapper'] if 'wrapper' in config else None
-    wrapper_kwargs = config['wrapper_kwargs'] if 'wrapper_kwargs' in config else {}
-    return get_env(env, env_kwargs, wrapper, wrapper_kwargs)
-
 def get_model(config, device="auto"):
     assert isinstance(config, Config)
     config = config.parse() # Parse the config
@@ -35,11 +26,19 @@ def get_model(config, device="auto"):
     network_class = None if config['network'] is None else vars(research.networks)[config['network']]
     optim_class = None if config['optim'] is None else vars(torch.optim)[config['optim']]
     processor_class = None if config['processor'] is None else vars(research.processors)[config['processor']]
-    env = None if config['env'] is None else get_env_from_config(config)
-    if config['env'] is None or config['train_kwargs'].get('eval_ep', 0) <= 0:
-        eval_env = None
+    
+    # TODO: Construct the train env as a vector env
+    '''
+    if config['parallel_envs']:
+        env = research.envs.SubprocVecEnv(config['env'], config['env_kwargs'], config['wrapper'], config['wrapper_kwargs'], **config['vec_kwargs'])
     else:
-        eval_env = get_env_from_config(config)
+        env = research.envs.DummyVecEnv(config['env'], config['env_kwargs'], config['wrapper'], config['wrapper_kwargs'], **config['vec_kwargs'])
+    '''
+    env = get_env(config['env'], config['env_kwargs'], config['wrapper'], config['wrapper_kwargs'])
+    
+    # Construct the eval env. Note that wrappers are assumed to be shared.
+    eval_env = None if config['eval_env'] is None else get_env(config['eval_env'], config['eval_env_kwargs'], 
+                                                               config['wrapper'], config['wrapper_kwargs'])
 
     algo = alg_class(env, network_class, dataset_class,
                      network_kwargs=config['network_kwargs'], 

@@ -42,7 +42,7 @@ Training is managed by five types of objects: algorithms, networks, environments
 
 All algorithms can be implemented by extending the `Algorithm` base class found in `algs/base.py`. Algorithms take in all parameters, including the class types of other objects, and run training. Most handling is already implemented, but `setup` methods may be overridden for specific functionality.
 
-Algorithms are required to have an `environment`, which for RL algorithms can be a gym environment, or for supervised learning can simply be a object containing gym spaces that dictate the models input and output spaces like the `Empty` environment implemented in `envs/empty.py`. 
+Algorithms are required to have an `environment`, which for RL algorithms can be a gym environment, or for supervised learning can simply be a object containing gym spaces that dictate the models input and output spaces like the `Empty` environment implemented in `envs/base.py`. 
 
 Networks must extend `nn.Module` and contain the entirety of your model. If multiple models are required, write a wrapper `network` class that contains both of them. Examples of this can be seen in the actor critic algorithms in the `rl` branch. All networks take in an observation (input) and action (output) space.
 

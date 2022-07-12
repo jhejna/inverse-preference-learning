@@ -14,6 +14,16 @@ class Config(object):
         # Env Args
         self.config['env'] = None
         self.config['env_kwargs'] = {}
+        # self.config['parallel_envs'] = False # TODO: for future parallel env support
+        
+        self.config['eval_env'] = None
+        self.config['eval_env_kwargs'] = {}
+
+        self.config['wrapper'] = None
+        self.config['wrapper_kwargs'] = {}
+
+        # Vector args. TODO: for future parallel env support
+        # self.config['vec_kwargs'] = {}
 
         # Algorithm Args
         self.config['alg'] = None
@@ -103,6 +113,8 @@ class Config(object):
         return self.config[key]
 
     def __setitem__(self, key, value):
+        if key not in self.config:
+            raise ValueError("Attempting to set an out of structure key. Configs must follow the format in config.py")
         self.config[key] = value
 
     def __contains__(self, key):

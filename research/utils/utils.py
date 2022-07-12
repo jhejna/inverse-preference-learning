@@ -1,4 +1,5 @@
 import torch
+import gym
 import numpy as np
 
 def to_device(batch, device):
@@ -8,6 +9,8 @@ def to_device(batch, device):
         batch = [to_device(v, device) for v in batch]
     elif isinstance(batch, torch.Tensor):
         batch = batch.to(device)
+    else:
+        raise ValueError("Unsupported type passed to `to_device`")
     return batch
 
 def to_tensor(batch):
@@ -20,6 +23,8 @@ def to_tensor(batch):
         if batch.dtype == np.float64:
             batch = batch.astype(np.float32)
         batch = torch.from_numpy(batch)
+    else:
+        raise ValueError("Unsupported type passed to `to_tensor`")
     return batch
 
 def to_np(batch):
@@ -29,6 +34,8 @@ def to_np(batch):
         batch = [to_np(v) for v in batch]
     elif isinstance(batch, torch.Tensor):
         batch = batch.detach().cpu().numpy()
+    else:
+        raise ValueError("Unsupported type passed to `to_np`")
     return batch
 
 def unsqueeze(batch, dim):
@@ -40,6 +47,8 @@ def unsqueeze(batch, dim):
         batch = np.expand_dims(batch, dim)
     elif isinstance(batch, torch.Tensor):
         batch = batch.unsqueeze(dim)
+    else:
+        raise ValueError("Unsupported type passed to `unsqueeze`")
     return batch
 
 def get_from_batch(batch, start, end=None):
@@ -52,6 +61,35 @@ def get_from_batch(batch, start, end=None):
             batch = batch[start]
         else:
             batch = batch[start:end]
+    else:
+        raise ValueError("Unsupported type passed to `get_from_batch`")
+    return batch
+
+def set_in_batch(batch, value, start, end=None):
+    if isinstance(batch, dict):
+        for v in batch.values():
+            set_in_batch(v, value, start, end=end)
+    elif isinstance(batch, list) or isinstance(batch, tuple):
+        for v in batch:
+            set_in_batch(v, value, start, end=end)
+    elif isinstance(batch, np.ndarray) or isinstance(batch, torch.Tensor):
+        if end is None:
+            batch[start] = value
+        else:
+            batch[start:end] = value
+    else:
+        raise ValueError("Unsupported type passed to `set_in_batch`")
+
+def batch_copy(batch):
+    if isinstance(batch, dict):
+        batch = {k: batch_copy(v) for k, v in batch.items()}
+    elif isinstance(batch, list) or isinstance(batch, tuple):
+        batch = [batch_copy(v) for v in batch]
+    elif isinstance(batch, np.ndarray):
+        batch = batch.copy()
+    elif isinstance(batch, torch.Tensor):
+        batch = batch.clone()
+    # Note that if we have scalars etc. we just return the value, thus no ending check.
     return batch
 
 def contains_tensors(batch):
@@ -62,7 +100,7 @@ def contains_tensors(batch):
     elif isinstance(batch, torch.Tensor):
         return True
     else:
-        return 
+        return
         
 def get_device(batch):
     if isinstance(batch, dict):
@@ -88,6 +126,24 @@ class PrintNode(torch.nn.Module):
     def forward(self, x):
         print(self.name, x.shape)
         return x
+
+def np_dataset_alloc(space, capacity, begin_pad=tuple(), end_pad=tuple()):
+    if isinstance(space, gym.spaces.Dict):
+        return {k: np_dataset_alloc(v, begin_pad=begin_pad, end_pad=end_pad) for k, v in space.items()}
+    elif isinstance(space, gym.spaces.Box):
+        dtype = np.float32 if space.dtype == np.float64 else space.dtype
+        return np.empty((capacity,) + begin_pad + space.shape + end_pad, dtype=dtype)
+    elif isinstance(space, gym.spaces.Discrete):
+        return np.empty((capacity,) + begin_pad + end_pad, dtype=np.int64)
+    elif isinstance(space, np.ndarray):
+        dtype = np.float32 if space.dtype == np.float64 else space.dtype
+        return np.empty((capacity,) + begin_pad + space.shape + end_pad, dtype=dtype)
+    elif isinstance(space, float):
+        return np.empty((capacity,) + begin_pad + end_pad, dtype=np.float32)
+    elif isinstance(space, bool):
+        return np.empty((capacity,) + begin_pad + end_pad, dtype=np.bool_)
+    else:
+        raise ValueError("Invalid space provided")
 
 def fetch_from_dict(data_dict, keys):
     '''

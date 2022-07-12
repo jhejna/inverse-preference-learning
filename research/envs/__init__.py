@@ -1,2 +1,2 @@
 # Register environment classes here
-from .empty import Empty
+from .base import Empty

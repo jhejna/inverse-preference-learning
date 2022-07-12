@@ -6,7 +6,6 @@ Examples are as follows:
 '''
 import research
 import torch
-from research.utils.utils import fetch_from_dict
 
 class Processor(object):
     '''

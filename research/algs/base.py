@@ -15,6 +15,7 @@ from research.utils.logger import Logger
 from research.utils import utils
 from research.utils.evaluate import eval_policy
 
+MAX_VALID_METRICS = {"reward", "accuracy", "success", "is_success"}
 
 def log_from_dict(logger, metric_lists, prefix):
     keys_to_remove = []
@@ -29,13 +30,9 @@ def log_from_dict(logger, metric_lists, prefix):
         del metric_lists[key]
 
 def _worker_init_fn(worker_id):
-    state = np.random.get_state()
-    new_state = list(state)
-    new_state[2] += worker_id
-    np.random.set_state(tuple(new_state))
-    random.seed(new_state[2])
-
-MAX_VALID_METRICS = {"reward", "accuracy", "success", "is_success"}
+    seed = torch.utils.data.get_worker_info().seed
+    np.random.seed(seed)
+    random.seed(seed)
 
 class Algorithm(ABC):
 
@@ -224,7 +221,7 @@ class Algorithm(ABC):
             validation_dataloader = torch.utils.data.DataLoader(self.validation_dataset, batch_size=self.batch_size, 
                                                             shuffle=shuffle, 
                                                             num_workers=0, 
-                                                            pin_memory=pin_memory,
+                                                            pin_memory=False, # Not for the validation dataset
                                                             collate_fn=self.collate_fn)
         else:
             validation_dataloader = None
