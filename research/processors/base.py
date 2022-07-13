@@ -13,6 +13,7 @@ class Processor(torch.nn.Module):
     '''
 
     def __init__(self, observation_space, action_space):
+        super().__init__()
         self.training = True
         self.observation_space = observation_space
         self.action_space = action_space

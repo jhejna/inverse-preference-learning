@@ -31,6 +31,7 @@ def log_from_dict(logger, metric_lists, prefix):
 
 def _worker_init_fn(worker_id):
     seed = torch.utils.data.get_worker_info().seed
+    seed = seed % (2**32 - 1) # Reduce to valid 32bit unsigned range
     np.random.seed(seed)
     random.seed(seed)
 
