@@ -117,6 +117,19 @@ def get_device(batch):
     else:
         return None
 
+def concatenate(*args, dim=0):
+    assert all([isinstance(arg, type(args[0])) for arg in args]) , "Must concatenate tensors of the same type"
+    if isinstance(args[0], dict):
+        return {k : concatenate(*[arg[k] for arg in args], dim=dim) for k in args[0].keys()}
+    elif isinstance(args[0], list) or isinstance(args[0], tuple):
+        batch = [concatenate(*[arg[i] for arg in args], dim=dim) for i in range(len(args[0]))]
+    elif isinstance(args[0], np.ndarray):
+        return np.concatenate(args, axis=dim)
+    elif isinstance(args[0], torch.Tensor):
+        return torch.concatenate(args, dim=dim)
+    else:
+        raise ValueError("Unsupported type passed to `concatenate`")
+
 class PrintNode(torch.nn.Module):
 
     def __init__(self, name=""):
@@ -133,12 +146,12 @@ def np_dataset_alloc(space, capacity, begin_pad=tuple(), end_pad=tuple()):
     elif isinstance(space, gym.spaces.Box):
         dtype = np.float32 if space.dtype == np.float64 else space.dtype
         return np.empty((capacity,) + begin_pad + space.shape + end_pad, dtype=dtype)
-    elif isinstance(space, gym.spaces.Discrete):
+    elif isinstance(space, gym.spaces.Discrete) or isinstance(space, np.int64):
         return np.empty((capacity,) + begin_pad + end_pad, dtype=np.int64)
     elif isinstance(space, np.ndarray):
         dtype = np.float32 if space.dtype == np.float64 else space.dtype
         return np.empty((capacity,) + begin_pad + space.shape + end_pad, dtype=dtype)
-    elif isinstance(space, float):
+    elif isinstance(space, float) or isinstance(space, np.float32):
         return np.empty((capacity,) + begin_pad + end_pad, dtype=np.float32)
     elif isinstance(space, bool):
         return np.empty((capacity,) + begin_pad + end_pad, dtype=np.bool_)

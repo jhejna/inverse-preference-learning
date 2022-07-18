@@ -17,7 +17,7 @@ def eval_policy(env, model, num_ep):
         ep_reward = 0
         ep_length = 0
         ep_metric = collections.defaultdict(list)
-        
+
         obs = env.reset()
         while not done:
             with torch.no_grad():

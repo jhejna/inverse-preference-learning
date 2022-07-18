@@ -34,7 +34,7 @@ def get_model(config, device="auto"):
     else:
         env = research.envs.DummyVecEnv(config['env'], config['env_kwargs'], config['wrapper'], config['wrapper_kwargs'], **config['vec_kwargs'])
     '''
-    env = get_env(config['env'], config['env_kwargs'], config['wrapper'], config['wrapper_kwargs'])
+    env = None if config['env'] is None else get_env(config['env'], config['env_kwargs'], config['wrapper'], config['wrapper_kwargs'])
     
     # Construct the eval env. Note that wrappers are assumed to be shared.
     eval_env = None if config['eval_env'] is None else get_env(config['eval_env'], config['eval_env_kwargs'], 

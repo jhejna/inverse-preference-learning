@@ -39,4 +39,4 @@ dependencies:
 
   - pip
   - pip:
-      - gym>=0.12
+      - gym<=0.25.0
