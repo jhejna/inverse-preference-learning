@@ -94,7 +94,7 @@ def train(config, path, device="auto"):
         model.seed(config['seed'])
 
     # Fetch the scheduler
-    schedule = None if config['scheduler'] is None else vars(schedules)[config['scheduler']]
+    schedule = None if config['schedule'] is None else vars(schedules)[config['schedule']]
 
     print("[research] Training a model with", sum(p.numel() for p in model.network.parameters() if p.requires_grad), "trainable parameters.")
     

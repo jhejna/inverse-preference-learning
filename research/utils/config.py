@@ -45,7 +45,6 @@ class Config(object):
         # Optimizer Args
         self.config['optim'] = None
         self.config['optim_kwargs'] = {}
-        self.config['scheduler'] = None
 
         # network Args
         self.config['network'] = None

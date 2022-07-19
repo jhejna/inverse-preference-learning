@@ -253,8 +253,8 @@ class Algorithm(ABC):
         schedulers = {}
         if schedule is not None:
             for name, opt in self.optim.items():
-                schedulers[name] = torch.optim.lr_scheduler.LambdaLR(opt, lr_lambda=self.schedule_fn(total_steps, **schedule_kwargs))
-
+                schedulers[name] = torch.optim.lr_scheduler.LambdaLR(opt, lr_lambda=schedule(total_steps, **schedule_kwargs))
+        
         # Setup model metrics.
         self._steps = 0
         self._epochs = 0
