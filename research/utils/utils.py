@@ -51,6 +51,19 @@ def unsqueeze(batch, dim):
         raise ValueError("Unsupported type passed to `unsqueeze`")
     return batch
 
+def squeeze(batch, dim):
+    if isinstance(batch, dict):
+        batch = {k: squeeze(v, dim) for k, v in batch.items()}
+    elif isinstance(batch, list) or isinstance(batch, tuple):
+        batch = [squeeze(v, dim) for v in batch]
+    elif isinstance(batch, np.ndarray):
+        batch = np.squeeze(batch, axis=dim)
+    elif isinstance(batch, torch.Tensor):
+        batch = batch.squeeze(dim)
+    else:
+        raise ValueError("Unsupported type passed to `squeeze`")
+    return batch
+
 def get_from_batch(batch, start, end=None):
     if isinstance(batch, dict):
         batch = {k: get_from_batch(v, start, end=end) for k, v in batch.items()}
@@ -142,7 +155,7 @@ class PrintNode(torch.nn.Module):
 
 def np_dataset_alloc(space, capacity, begin_pad=tuple(), end_pad=tuple()):
     if isinstance(space, gym.spaces.Dict):
-        return {k: np_dataset_alloc(v, begin_pad=begin_pad, end_pad=end_pad) for k, v in space.items()}
+        return {k: np_dataset_alloc(v, capacity, begin_pad=begin_pad, end_pad=end_pad) for k, v in space.items()}
     elif isinstance(space, gym.spaces.Box):
         dtype = np.float32 if space.dtype == np.float64 else space.dtype
         return np.empty((capacity,) + begin_pad + space.shape + end_pad, dtype=dtype)
