@@ -47,6 +47,8 @@ def unsqueeze(batch, dim):
         batch = np.expand_dims(batch, dim)
     elif isinstance(batch, torch.Tensor):
         batch = batch.unsqueeze(dim)
+    elif isinstance(batch, (int, float, np.generic)):
+        batch = np.array([batch])
     else:
         raise ValueError("Unsupported type passed to `unsqueeze`")
     return batch
