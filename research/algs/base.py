@@ -13,7 +13,7 @@ import research
 from research.processors.base import IdentityProcessor
 from research.utils.logger import Logger
 from research.utils import utils
-from research.utils.evaluate import eval_policy
+from research.utils import evaluate
 
 MAX_VALID_METRICS = {"reward", "accuracy", "success", "is_success"}
 
@@ -223,7 +223,7 @@ class Algorithm(ABC):
 
     def train(self, path, total_steps, schedule=None, schedule_kwargs={}, 
                     log_freq=100, eval_freq=1000, max_eval_steps=-1, workers=4, loss_metric="loss", 
-                    eval_ep=-1, profile_freq=-1, use_wandb=False, x_axis="steps"):
+                    profile_freq=-1, use_wandb=False, x_axis="steps", eval_fn=None, eval_kwargs={}):
         
         writers = ['tb', 'csv']
         if use_wandb:
@@ -254,7 +254,10 @@ class Algorithm(ABC):
         if schedule is not None:
             for name, opt in self.optim.items():
                 schedulers[name] = torch.optim.lr_scheduler.LambdaLR(opt, lr_lambda=schedule(total_steps, **schedule_kwargs))
-        
+
+        # Grab the correct evaluation function
+        eval_fn = None if eval_fn is None else vars(evaluate)[eval_fn]
+
         # Setup model metrics.
         self._steps = 0
         self._epochs = 0
@@ -355,8 +358,8 @@ class Algorithm(ABC):
                     log_from_dict(logger, validation_extras, "valid")
 
                     # Evaluation episodes
-                    if self.eval_env is not None and eval_ep > 0:
-                        eval_metrics = eval_policy(self.eval_env, self, eval_ep)
+                    if self.eval_env is not None and eval_fn is not None:
+                        eval_metrics = eval_fn(self.eval_env, self, **eval_kwargs)
                         if loss_metric in eval_metrics:
                             current_validation_metric = eval_metrics[loss_metric]
                         log_from_dict(logger, eval_metrics, "eval")
