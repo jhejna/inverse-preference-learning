@@ -254,7 +254,10 @@ class Experiment(dict):
                 elif len(self[k]) > 1:
                     # Add it to the path name if it is different for each run.
                     if isinstance(v, str):
-                        str_val = v
+                        if '/' in v: # TODO: get parts of path that are different
+                            str_val = os.path.basename(v)
+                        else:
+                            str_val = v
                     elif isinstance(v, int) or isinstance(v, float) or isinstance(v, bool) or v is None:
                         str_val = str(v)
                     elif isinstance(v, list):

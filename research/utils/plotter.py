@@ -26,6 +26,7 @@ def plot_run(paths, name, ax=None, x_key="steps", y_keys=["eval/loss"], window_s
             df = pd.read_csv(os.path.join(path, LOG_FILE_NAME))
             if y_key not in df:
                 print("[research] WARNING: y_key was not in run, skipping plot", path)
+                continue
             x, y = moving_avg(df[x_key], df[y_key], window_size=window_size)
             assert len(x) == len(y)
             if max_x_value is not None:
@@ -33,6 +34,9 @@ def plot_run(paths, name, ax=None, x_key="steps", y_keys=["eval/loss"], window_s
                 x = x[x <= max_x_value]
             xs.append(x)
             ys.append(y)
+        if len(ys) == 0:
+            print("[research], WARNING: had no runs for y_key", y_key, "skipping.")
+            continue
         xs = np.concatenate(xs, axis=0)
         ys = np.concatenate(ys, axis=0)
         plot_df = pd.DataFrame({x_key: xs, y_key: ys})
@@ -132,8 +136,8 @@ def plot_from_config(config_path):
 
         paths, labels = list(plot_config['methods'].values()), list(plot_config['methods'].keys())
         plot_title = plot_title if config.get('use_subplot_titles') else None
-        plot_kwargs = plot_config.get('kwargs', {}).copy()
-        plot_kwargs.update(config['kwargs'])
+        plot_kwargs = config.get('kwargs', dict()).copy()
+        plot_kwargs.update(plot_config.get('kwargs', {}))
 
         create_plot(paths, labels, ax, plot_title, color_map=config.get('color_map'), **plot_kwargs)
 
