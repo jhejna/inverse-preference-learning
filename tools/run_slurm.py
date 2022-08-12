@@ -70,6 +70,8 @@ if __name__ == "__main__":
     # Add Slurm Arguments
     for k, v in SLURM_ARGS.items():
         parser.add_argument("--" + k, **v)
+    parser.add_argument("--remainder", default="split", choices=["split", "new"], 
+                        help="Whether or not to spread out jobs that don't divide evently, or place them in a new job")
 
     args = parser.parse_args()
     scripts = utils.get_scripts(args)
@@ -78,8 +80,13 @@ if __name__ == "__main__":
     num_slurm_calls = len(scripts) // args.scripts_per_job
     remainder_scripts = len(scripts) - num_slurm_calls * args.scripts_per_job
     scripts_per_call = [args.scripts_per_job for _ in range(num_slurm_calls)]
-    for i in range(remainder_scripts):
-        scripts_per_call[i] += 1 # Add the remainder jobs to spread them out as evenly as possible.
+    if args.remainder == "split":
+        for i in range(remainder_scripts):
+            scripts_per_call[i] += 1 # Add the remainder jobs to spread them out as evenly as possible.
+    elif args.remainder == "new":
+        scripts_per_call.append(remainder_scripts)
+    else:
+        raise ValueError("Invalid job remainder specification.")
     assert sum(scripts_per_call) == len(scripts)
     script_index = 0
     procs = []
