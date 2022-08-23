@@ -2,6 +2,7 @@ import copy
 import importlib
 import os
 import pprint
+from typing import Any, Dict
 
 import yaml
 
@@ -61,7 +62,7 @@ class Config(object):
         self.config["train_kwargs"] = {}
 
     @staticmethod
-    def _parse_helper(d):
+    def _parse_helper(d: Dict) -> None:
         for k, v in d.items():
             if isinstance(v, list) and len(v) > 1 and v[0] == "import":
                 # parse the value to an import
@@ -69,22 +70,22 @@ class Config(object):
             elif isinstance(v, dict):
                 Config._parse_helper(v)
 
-    def parse(self):
+    def parse(self) -> "Config":
         config = self.copy()
         Config._parse_helper(config.config)
         return config
 
-    def update(self, d):
+    def update(self, d: Dict) -> None:
         self.config.update(d)
 
-    def save(self, path):
+    def save(self, path: str) -> None:
         if os.path.isdir(path):
             path = os.path.join(path, "config.yaml")
         with open(path, "w") as f:
             yaml.dump(self.config, f)
 
     @classmethod
-    def load(cls, path):
+    def load(cls, path: str) -> "Config":
         if os.path.isdir(path):
             path = os.path.join(path, "config.yaml")
         with open(path, "r") as f:
@@ -94,7 +95,7 @@ class Config(object):
         return config
 
     @staticmethod
-    def _flatten_helper(flattened_config, value, prefix, separator="."):
+    def _flatten_helper(flattened_config: Dict, value: Any, prefix: str, separator: str = ".") -> None:
         if isinstance(value, dict) and all([isinstance(k, str) for k in value.keys()]):
             # We have another nested configuration dictionary
             for k in value.keys():
@@ -103,27 +104,27 @@ class Config(object):
             # We do not have a config file, just return the regular value.
             flattened_config[prefix[1:]] = value  # Note that we remove the first prefix because it has a leading '.'
 
-    def flatten(self, separator="."):
+    def flatten(self, separator: str = ".") -> Dict:
         """Returns a flattened version of the config where '.' separates nested values"""
         flattened_config = {}
         Config._flatten_helper(flattened_config, self.config, "", separator=separator)
         return flattened_config
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: str) -> Any:
         return self.config[key]
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: str, value: Any):
         if key not in self.config:
             raise ValueError("Attempting to set an out of structure key. Configs must follow the format in config.py")
         self.config[key] = value
 
-    def __contains__(self, key):
+    def __contains__(self, key: str) -> bool:
         return self.config.__contains__(key)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return pprint.pformat(self.config, indent=4)
 
-    def copy(self):
+    def copy(self) -> "Config":
         config = type(self)()
         config.config = copy.deepcopy(self.config)
         return config

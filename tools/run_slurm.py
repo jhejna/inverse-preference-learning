@@ -3,6 +3,7 @@ import copy
 import os
 import subprocess
 import tempfile
+from typing import TextIO
 
 import utils
 
@@ -26,7 +27,7 @@ SLURM_ARGS = {
 SLURM_NAME_OVERRIDES = {"gpus": "gres", "cpus": "cpus-per-task"}
 
 
-def write_slurm_header(f, args):
+def write_slurm_header(f: TextIO, args: argparse.Namespace) -> None:
     # Make a copy of the args to prevent corruption
     args = copy.deepcopy(args)
     # Modify everything in the name space to later write it all at once

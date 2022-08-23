@@ -5,14 +5,14 @@ All learning rate schedulers use the pytorch LambdaLR function and any additiona
 """
 
 
-def linear_decay(total_steps, start_step=1, offset=0):
+def linear_decay(total_steps: int, start_step: int = 1, offset: int = 0):
     def fn(step):
         return 1.0 - max(0, step + offset - start_step) / (total_steps - start_step)
 
     return fn
 
 
-def linear_warmup(total_steps, end_step=1):
+def linear_warmup(total_steps: int, end_step: int = 1):
     def fn(step):
         return min(1.0, step / end_step)
 

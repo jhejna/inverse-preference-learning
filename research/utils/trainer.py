@@ -1,17 +1,19 @@
 import os
 import subprocess
+from typing import Dict, Optional, Union
 
 import gym
 import torch
 
 import research
+from research.algs.base import Algorithm
 
 from . import schedules
 from .config import Config
 from .logger import Logger
 
 
-def get_env(env, env_kwargs, wrapper, wrapper_kwargs):
+def get_env(env: gym.Env, env_kwargs: Dict, wrapper: Optional[gym.Env], wrapper_kwargs: Dict) -> gym.Env:
     # Try to get the environment
     try:
         env = vars(research.envs)[env](**env_kwargs)
@@ -22,7 +24,7 @@ def get_env(env, env_kwargs, wrapper, wrapper_kwargs):
     return env
 
 
-def get_model(config, device="auto"):
+def get_model(config, device: Union[str, torch.device] = "auto") -> Algorithm:
     assert isinstance(config, Config)
     config = config.parse()  # Parse the config
     alg_class = vars(research.algs)[config["alg"]]
@@ -75,7 +77,7 @@ def get_model(config, device="auto"):
     return algo
 
 
-def train(config, path, device="auto"):
+def train(config: Config, path: str, device: Union[str, torch.device] = "auto") -> Algorithm:
     # Create the save path and save the config
     print("[research] Training agent with config:")
     print(config)
@@ -107,7 +109,7 @@ def train(config, path, device="auto"):
         use_wandb = False
 
     model = get_model(config, device=device)
-    assert issubclass(type(model), research.algs.base.Algorithm)
+    assert issubclass(type(model), Algorithm)
     print("[research] Using device", model.device)
 
     if config["seed"] is not None:
@@ -135,13 +137,13 @@ def train(config, path, device="auto"):
     return model
 
 
-def load(config, model_path, device="auto", strict=True):
+def load(config: Config, model_path: str, device: Union[str, torch.device] = "auto", strict: bool = True) -> Algorithm:
     model = get_model(config, device=device)
     model.load(model_path, strict=strict)
     return model
 
 
-def load_from_path(checkpoint_path, device="auto", strict=True):
+def load_from_path(checkpoint_path: str, device: Union[str, torch.device] = "auto", strict: bool = True) -> Algorithm:
     config_path = os.path.join(os.path.dirname(checkpoint_path), "config.yaml")
     config = Config.load(config_path)
     return load(config, checkpoint_path, device=device, strict=strict)

@@ -4,6 +4,9 @@ Examples are as follows:
 1. Normalization
 2. Image Augmentations applied on the entire batch at once.
 """
+from typing import Any, Dict, List, Tuple
+
+import gym
 import torch
 
 import research
@@ -14,13 +17,13 @@ class Processor(torch.nn.Module):
     This is the base processor class. All processors should inherit from it.
     """
 
-    def __init__(self, observation_space, action_space):
+    def __init__(self, observation_space: gym.Space, action_space: gym.Space):
         super().__init__()
         self.training = True
         self.observation_space = observation_space
         self.action_space = action_space
 
-    def unprocess(self, batch):
+    def unprocess(self, batch: Any) -> Any:
         raise NotImplementedError
 
     @property
@@ -33,10 +36,10 @@ class IdentityProcessor(Processor):
     This processor just performs the identity operation
     """
 
-    def __call__(self, batch):
+    def forward(self, batch: Any) -> Any:
         return batch
 
-    def unprocess(self, batch):
+    def unprocess(self, batch: Any) -> Any:
         return batch
 
 
@@ -45,7 +48,12 @@ class ComposeProcessor(Processor):
     This Processor Composes multiple processors
     """
 
-    def __init__(self, observation_space, action_space, processors=["IdentityProcessor", {}]):
+    def __init__(
+        self,
+        observation_space: gym.Space,
+        action_space: gym.Space,
+        processors: List[Tuple[str, Dict]] = [("IdentityProcessor", {})],
+    ):
         super().__init__(observation_space, action_space)
         processors = []
         for processor_class, processor_kwargs in processors:
@@ -54,7 +62,7 @@ class ComposeProcessor(Processor):
             processors.append(processor)
         self.processors = torch.nn.ModuleList(processors)
 
-    def forward(self, batch):
+    def forward(self, batch: Any) -> Any:
         for processor in self.processors:
             batch = processor(batch)
         return batch

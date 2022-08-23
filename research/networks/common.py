@@ -1,4 +1,5 @@
 import math
+from typing import List, Optional, Union
 
 import torch
 from torch import nn
@@ -6,7 +7,14 @@ from torch.nn import functional as F
 
 
 class MLP(nn.Module):
-    def __init__(self, input_dim, output_dim, hidden_layers=[256, 256], act=nn.ReLU, output_act=None):
+    def __init__(
+        self,
+        input_dim: int,
+        output_dim: int,
+        hidden_layers: List[int] = [256, 256],
+        act: nn.Module = nn.ReLU,
+        output_act: Optional[nn.Module] = None,
+    ):
         super().__init__()
         net = []
         last_dim = input_dim
@@ -21,18 +29,26 @@ class MLP(nn.Module):
         self._has_output_act = False if output_act is None else True
 
     @property
-    def last_layer(self):
+    def last_layer(self) -> nn.Module:
         if self._has_output_act:
             return self.net[-2]
         else:
             return self.net[-1]
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.net(x)
 
 
 class LinearEnsemble(nn.Module):
-    def __init__(self, in_features, out_features, bias=True, ensemble_size=3, device=None, dtype=None):
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        bias: bool = True,
+        ensemble_size: int = 3,
+        device: Optional[Union[str, torch.device]] = None,
+        dtype: Optional[torch.dtype] = None,
+    ):
         """
         An Ensemble linear layer.
         For inputs of shape (B, H) will return (E, B, H) where E is the ensemble size
@@ -50,7 +66,7 @@ class LinearEnsemble(nn.Module):
             self.register_parameter("bias", None)
         self.reset_parameters()
 
-    def reset_parameters(self):
+    def reset_parameters(self) -> None:
         # Hack to make sure initialization is correct. This shouldn't be too bad though
         for w in self.weight:
             w.transpose_(0, 1)
@@ -64,7 +80,7 @@ class LinearEnsemble(nn.Module):
             nn.init.uniform_(self.bias, -bound, bound)
             self.bias = nn.Parameter(self.bias)
 
-    def forward(self, input):
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
         if len(input.shape) == 2:
             input = input.repeat(self.ensemble_size, 1, 1)
         elif len(input.shape) > 3:
@@ -78,7 +94,15 @@ class LinearEnsemble(nn.Module):
 
 
 class EnsembleMLP(nn.Module):
-    def __init__(self, input_dim, output_dim, ensemble_size=3, hidden_layers=[256, 256], act=nn.ReLU, output_act=None):
+    def __init__(
+        self,
+        input_dim: int,
+        output_dim: int,
+        ensemble_size: int = 3,
+        hidden_layers: List[int] = [256, 256],
+        act: nn.Module = nn.ReLU,
+        output_act: Optional[nn.Module] = None,
+    ):
         """
         An ensemble MLP
         Returns values of shape (E, B, H) from input (B, H)
@@ -96,11 +120,11 @@ class EnsembleMLP(nn.Module):
         self.net = nn.Sequential(*net)
         self._has_output_act = False if output_act is None else True
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.net(x)
 
     @property
-    def last_layer(self):
+    def last_layer(self) -> torch.Tensor:
         if self._has_output_act:
             return self.net[-2]
         else:

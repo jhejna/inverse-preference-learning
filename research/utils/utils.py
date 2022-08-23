@@ -1,9 +1,11 @@
+from typing import Any, Dict, List, Optional, Tuple, Union
+
 import gym
 import numpy as np
 import torch
 
 
-def to_device(batch, device):
+def to_device(batch: Any, device: torch.device) -> Any:
     if isinstance(batch, dict):
         batch = {k: to_device(v, device) for k, v in batch.items()}
     elif isinstance(batch, list) or isinstance(batch, tuple):
@@ -15,7 +17,7 @@ def to_device(batch, device):
     return batch
 
 
-def to_tensor(batch):
+def to_tensor(batch: Any) -> Any:
     if isinstance(batch, dict):
         batch = {k: to_tensor(v) for k, v in batch.items()}
     elif isinstance(batch, list) or isinstance(batch, tuple):
@@ -30,7 +32,7 @@ def to_tensor(batch):
     return batch
 
 
-def to_np(batch):
+def to_np(batch: Any) -> Any:
     if isinstance(batch, dict):
         batch = {k: to_np(v) for k, v in batch.items()}
     elif isinstance(batch, list) or isinstance(batch, tuple):
@@ -42,7 +44,7 @@ def to_np(batch):
     return batch
 
 
-def unsqueeze(batch, dim):
+def unsqueeze(batch: Any, dim: int) -> Any:
     if isinstance(batch, dict):
         batch = {k: unsqueeze(v, dim) for k, v in batch.items()}
     elif isinstance(batch, list) or isinstance(batch, tuple):
@@ -58,7 +60,7 @@ def unsqueeze(batch, dim):
     return batch
 
 
-def squeeze(batch, dim):
+def squeeze(batch: Any, dim: int) -> Any:
     if isinstance(batch, dict):
         batch = {k: squeeze(v, dim) for k, v in batch.items()}
     elif isinstance(batch, list) or isinstance(batch, tuple):
@@ -72,7 +74,7 @@ def squeeze(batch, dim):
     return batch
 
 
-def get_from_batch(batch, start, end=None):
+def get_from_batch(batch: Any, start: int, end: Optional[int] = None) -> Any:
     if isinstance(batch, dict):
         batch = {k: get_from_batch(v, start, end=end) for k, v in batch.items()}
     elif isinstance(batch, list) or isinstance(batch, tuple):
@@ -87,7 +89,7 @@ def get_from_batch(batch, start, end=None):
     return batch
 
 
-def set_in_batch(batch, value, start, end=None):
+def set_in_batch(batch: Any, value: Any, start: int, end: Optional[int] = None) -> None:
     if isinstance(batch, dict):
         for v in batch.values():
             set_in_batch(v, value, start, end=end)
@@ -103,7 +105,7 @@ def set_in_batch(batch, value, start, end=None):
         raise ValueError("Unsupported type passed to `set_in_batch`")
 
 
-def batch_copy(batch):
+def batch_copy(batch: Any) -> Any:
     if isinstance(batch, dict):
         batch = {k: batch_copy(v) for k, v in batch.items()}
     elif isinstance(batch, list) or isinstance(batch, tuple):
@@ -116,7 +118,7 @@ def batch_copy(batch):
     return batch
 
 
-def contains_tensors(batch):
+def contains_tensors(batch: Any) -> bool:
     if isinstance(batch, dict):
         return any([contains_tensors(v) for v in batch.values()])
     if isinstance(batch, list):
@@ -124,10 +126,10 @@ def contains_tensors(batch):
     elif isinstance(batch, torch.Tensor):
         return True
     else:
-        return
+        return False
 
 
-def get_device(batch):
+def get_device(batch: Any) -> Optional[torch.device]:
     if isinstance(batch, dict):
         return get_device(list(batch.values()))
     elif isinstance(batch, list):
@@ -143,7 +145,7 @@ def get_device(batch):
         return None
 
 
-def concatenate(*args, dim=0):
+def concatenate(*args, dim: int = 0):
     assert all([isinstance(arg, type(args[0])) for arg in args]), "Must concatenate tensors of the same type"
     if isinstance(args[0], dict):
         return {k: concatenate(*[arg[k] for arg in args], dim=dim) for k in args[0].keys()}
@@ -158,16 +160,18 @@ def concatenate(*args, dim=0):
 
 
 class PrintNode(torch.nn.Module):
-    def __init__(self, name=""):
+    def __init__(self, name: str = ""):
         super().__init__()
         self.name = name
 
-    def forward(self, x):
+    def forward(self, x: Any) -> Any:
         print(self.name, x.shape)
         return x
 
 
-def np_dataset_alloc(space, capacity, begin_pad=tuple(), end_pad=tuple()):
+def np_dataset_alloc(
+    space: gym.Space, capacity: int, begin_pad: Tuple[int] = tuple(), end_pad: Tuple[int] = tuple()
+) -> np.ndarray:
     if isinstance(space, gym.spaces.Dict):
         return {k: np_dataset_alloc(v, capacity, begin_pad=begin_pad, end_pad=end_pad) for k, v in space.items()}
     elif isinstance(space, gym.spaces.Box):
@@ -186,7 +190,7 @@ def np_dataset_alloc(space, capacity, begin_pad=tuple(), end_pad=tuple()):
         raise ValueError("Invalid space provided")
 
 
-def fetch_from_dict(data_dict, keys):
+def fetch_from_dict(data_dict: Dict, keys: Union[str, List, Tuple]) -> List[Any]:
     """
     inputs:
         data_dict: a nested dictionary datastrucutre

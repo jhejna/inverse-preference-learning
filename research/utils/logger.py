@@ -1,6 +1,7 @@
 import csv
 import os
 from abc import ABC, abstractmethod
+from typing import Any, List
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -16,19 +17,19 @@ class Writer(ABC):
         self.on_eval = on_eval
         self.values = {}
 
-    def record(self, key, value):
+    def record(self, key: str, value: Any) -> None:
         self.values[key] = value
 
-    def dump(self, step, eval=False):
+    def dump(self, step: int, eval: bool = False) -> None:
         if not self.on_eval or eval:
             self._dump(step)
 
     @abstractmethod
-    def _dump(self, step, eval=False):
+    def _dump(self, step: int, eval: bool = False) -> None:
         return NotImplementedError
 
     @abstractmethod
-    def close(self):
+    def close(self) -> None:
         raise NotImplementedError
 
 
@@ -78,32 +79,32 @@ class CSVWriter(Writer):
 
 
 class WandBWriter(Writer):
-    def __init__(self, path, on_eval=True):
+    def __init__(self, path: str, on_eval: bool = True):
         super().__init__(path, on_eval=on_eval)
         # No extra init steps, just mark eval as True
 
-    def _dump(self, step):
+    def _dump(self, step: int) -> None:
         wandb.log(self.values, step=step)
         self.values.clear()  # reset the values
 
-    def close(self):
+    def close(self) -> None:
         wandb.finish()
 
 
 class Logger(object):
-    def __init__(self, path, writers=["tb", "csv"]):
+    def __init__(self, path: str, writers: List[str] = ["tb", "csv"]):
         self.writers = []
         for writer in writers:
             self.writers.append({"tb": TensorBoardWriter, "csv": CSVWriter, "wandb": WandBWriter}[writer](path))
 
-    def record(self, key, value):
+    def record(self, key: str, value: Any) -> None:
         for writer in self.writers:
             writer.record(key, value)
 
-    def dump(self, step, eval=False):
+    def dump(self, step: int, eval: bool = False) -> None:
         for writer in self.writers:
             writer.dump(step, eval=eval)
 
-    def close(self):
+    def close(self) -> None:
         for writer in self.writers:
             writer.close()

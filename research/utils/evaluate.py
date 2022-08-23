@@ -1,8 +1,11 @@
 import collections
+from typing import Any, Dict
 
 import gym
 import numpy as np
 import torch
+
+from research.algs.base import Algorithm
 
 from . import utils
 
@@ -26,7 +29,7 @@ class EvalMetricTracker(object):
         self.ep_reward = 0
         self.ep_metrics = collections.defaultdict(list)
 
-    def reset(self):
+    def reset(self) -> None:
         if self.ep_length > 0:
             # Add the episode to overall metrics
             self.metrics["reward"].append(self.ep_reward)
@@ -45,17 +48,17 @@ class EvalMetricTracker(object):
             self.ep_reward = 0
             self.ep_metrics = collections.defaultdict(list)
 
-    def step(self, reward, info):
+    def step(self, reward: float, info: Dict) -> None:
         self.ep_length += 1
         self.ep_reward += reward
         for k, v in info.items():
             if isinstance(v, float) or np.isscalar(v):
                 self.ep_metrics[k].append(v)
 
-    def add(self, k, v):
+    def add(self, k: str, v: Any):
         self.metrics[k].append(v)
 
-    def export(self):
+    def export(self) -> Dict:
         if self.ep_length > 0:
             # We have one remaining episode to log, make sure to get it.
             self.reset()
@@ -64,7 +67,7 @@ class EvalMetricTracker(object):
         return metrics
 
 
-def eval_policy(env, model, num_ep=10):
+def eval_policy(env: gym.Env, model: Algorithm, num_ep: int = 10) -> Dict:
     metric_tracker = EvalMetricTracker()
 
     for _ in range(num_ep):

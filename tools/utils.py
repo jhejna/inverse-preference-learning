@@ -5,6 +5,7 @@ import json
 import os
 import pprint
 import tempfile
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import yaml
 
@@ -21,7 +22,7 @@ DEFAULT_REQUIRED_ARGS = ["path", "config"]
 FOLDER_KEYS = ["env"]
 
 
-def get_parser():
+def get_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--entry-point", type=str, action="append", default=None)
     parser.add_argument(
@@ -36,7 +37,7 @@ def get_parser():
     return parser
 
 
-def parse_var(s):
+def parse_var(s: str) -> Tuple[str]:
     """
     Parse a key, value pair, separated by '='
     """
@@ -48,7 +49,7 @@ def parse_var(s):
     return (key, value)
 
 
-def parse_vars(items):
+def parse_vars(items: Iterable) -> Dict:
     """
     Parse a series of key-value pairs and return a dictionary
     """
@@ -61,7 +62,7 @@ def parse_vars(items):
     return d
 
 
-def get_scripts(args):
+def get_scripts(args: argparse.Namespace) -> List[Tuple[str, Dict]]:
     all_scripts = []
 
     if args.entry_point is None:
@@ -137,17 +138,17 @@ class Config(object):
         self.parsed = False
         self.config = dict()
 
-    def save(self, path):
+    def save(self, path: str) -> None:
         if os.path.isdir(path):
             path = os.path.join(path, "config.yaml")
         with open(path, "w") as f:
             yaml.dump(self.config, f)
 
-    def update(self, d):
+    def update(self, d: Dict) -> None:
         self.config.update(d)
 
     @classmethod
-    def load(cls, path):
+    def load(cls, path: str) -> "Config":
         if os.path.isdir(path):
             path = os.path.join(path, "config.yaml")
         with open(path, "r") as f:
@@ -156,19 +157,19 @@ class Config(object):
         config.update(data)
         return config
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: str) -> Any:
         return self.config[key]
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: str, value: Any) -> None:
         self.config[key] = value
 
-    def __contains__(self, key):
+    def __contains__(self, key: str):
         return self.config.__contains__(key)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return pprint.pformat(self.config, indent=4)
 
-    def copy(self):
+    def copy(self) -> "Config":
         assert not self.parsed, "Cannot copy a parsed config"
         config = type(self)()
         config.config = copy.deepcopy(self.config)
@@ -176,7 +177,7 @@ class Config(object):
 
 
 class Experiment(dict):
-    def __init__(self, base=None, name=None, paired_keys=[]):
+    def __init__(self, base: str, name: Optional[str] = None, paired_keys: List[List[str]] = []):
         super().__init__()
         self._name = name
         self.base_config = Config.load(base)
@@ -187,7 +188,7 @@ class Experiment(dict):
         return self._name
 
     @classmethod
-    def load(cls, path):
+    def load(cls, path: str) -> "Experiment":
         name = os.path.splitext(os.path.basename(path))[0]
         with open(path, "r") as fp:
             data = json.load(fp)
@@ -213,7 +214,7 @@ class Experiment(dict):
         experiment.update(data)
         return experiment
 
-    def get_variants(self):
+    def get_variants(self) -> List:
         paired_keys = set()
         for key_pair in self.paired_keys:
             for k in key_pair:
@@ -243,7 +244,7 @@ class Experiment(dict):
 
         return variants
 
-    def generate_configs_and_names(self):
+    def generate_configs_and_names(self) -> List[Tuple[str, str]]:
         variants = self.get_variants()
         configs_and_names = []
         for i, variant in enumerate(variants):

@@ -1,5 +1,6 @@
 import argparse
 import os
+from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -13,14 +14,23 @@ sns.set_context(context="paper", font_scale=0.68)
 sns.set_style("white", {"font.family": "serif"})
 
 
-def moving_avg(x, y, window_size=1):
+def moving_avg(x, y, window_size: int = 1):
     if window_size == 1:
         return x, y
     moving_avg_y = np.convolve(y, np.ones(window_size) / window_size, "valid")
     return x[-len(moving_avg_y) :], moving_avg_y
 
 
-def plot_run(paths, name, ax=None, x_key="steps", y_keys=["eval/loss"], window_size=1, max_x_value=None, **kwargs):
+def plot_run(
+    paths: List[str],
+    name: str,
+    ax=None,
+    x_key: str = "steps",
+    y_keys: List[str] = ["eval/loss"],
+    window_size: int = 1,
+    max_x_value: Optional[int] = None,
+    **kwargs,
+) -> None:
     for path in paths:
         assert LOG_FILE_NAME in os.listdir(path), "Did not find log file, found " + " ".join(os.listdir(path))
     for y_key in y_keys:
@@ -48,7 +58,16 @@ def plot_run(paths, name, ax=None, x_key="steps", y_keys=["eval/loss"], window_s
         sns.lineplot(ax=ax, x=x_key, y=y_key, data=plot_df, sort=True, ci=ci, label=label, **kwargs)
 
 
-def create_plot(paths, labels, ax=None, title=None, color_map=None, xlabel=None, ylabel=None, **kwargs):
+def create_plot(
+    paths: List[str],
+    labels: List[str],
+    ax=None,
+    title: Optional[str] = None,
+    color_map: Optional[Dict] = None,
+    xlabel: Optional[str] = None,
+    ylabel: Optional[str] = None,
+    **kwargs,
+):
     assert len(labels) == len(labels), "The length of paths must the same as the length of labels"
     ax = plt.gca() if ax is None else ax
 
@@ -78,7 +97,7 @@ def create_plot(paths, labels, ax=None, title=None, color_map=None, xlabel=None,
     sns.despine(ax=ax)
 
 
-def plot_from_config(config_path):
+def plot_from_config(config_path: str) -> None:
     """
     --- Configuration design for plot files ---
     title: null
