@@ -4,18 +4,20 @@ import random
 import time
 from abc import ABC, abstractmethod
 from collections import defaultdict
+from typing import Any, Dict, Optional, Type, Union
 
+import gym
 import numpy as np
 import torch
 
-from research.processors.base import IdentityProcessor
+from research.processors.base import IdentityProcessor, Processor
 from research.utils import evaluate, utils
 from research.utils.logger import Logger
 
 MAX_VALID_METRICS = {"reward", "accuracy", "success", "is_success"}
 
 
-def log_from_dict(logger, metric_lists, prefix):
+def log_from_dict(logger: Logger, metric_lists: Dict, prefix: str) -> None:
     keys_to_remove = []
     for metric_name, metric_value in metric_lists.items():
         if isinstance(metric_value, list) and len(metric_value) > 0:
@@ -28,7 +30,7 @@ def log_from_dict(logger, metric_lists, prefix):
         del metric_lists[key]
 
 
-def _worker_init_fn(worker_id):
+def _worker_init_fn(worker_id: int) -> None:
     seed = torch.utils.data.get_worker_info().seed
     seed = seed % (2**32 - 1)  # Reduce to valid 32bit unsigned range
     np.random.seed(seed)
@@ -38,21 +40,21 @@ def _worker_init_fn(worker_id):
 class Algorithm(ABC):
     def __init__(
         self,
-        env,
-        network_class,
-        dataset_class,
-        network_kwargs={},
-        dataset_kwargs={},
-        device="auto",
-        optim_class=torch.optim.Adam,
-        optim_kwargs={"lr": 0.0001},
-        processor_class=None,
-        processor_kwargs={},
-        checkpoint=None,
-        validation_dataset_kwargs=None,
-        collate_fn=None,
-        batch_size=64,
-        eval_env=None,
+        env: gym.Env,
+        network_class: torch.nn.Module,
+        dataset_class: Union[torch.utils.data.IterableDataset, torch.utils.data.Dataset],
+        network_kwargs: Dict = {},
+        dataset_kwargs: Dict = {},
+        device: Union[str, torch.device] = "auto",
+        optim_class: Type[torch.optim.Optimizer] = torch.optim.Adam,
+        optim_kwargs: Dict = {"lr": 0.0001},
+        processor_class: Optional[Type[Processor]] = None,
+        processor_kwargs: Dict = {},
+        checkpoint: Optional[str] = None,
+        validation_dataset_kwargs: Optional[Dict] = None,
+        collate_fn: Optional[Any] = None,
+        batch_size: Optional[int] = 64,
+        eval_env: Optional[gym.Env] = None,
     ):
         # Save relevant values
         self.env = env
@@ -89,7 +91,7 @@ class Algorithm(ABC):
                 self.load(checkpoint, strict=False)
 
     @property
-    def action_space(self):
+    def action_space(self) -> gym.Space:
         if self.env is not None:
             return self.env.action_space
         elif self.eval_env is not None:
@@ -98,7 +100,7 @@ class Algorithm(ABC):
             raise ValueError("Neither env or eval_env was provided.")
 
     @property
-    def observation_space(self):
+    def observation_space(self) -> gym.Space:
         if self.env is not None:
             return self.env.observation_space
         elif self.eval_env is not None:
@@ -106,7 +108,7 @@ class Algorithm(ABC):
         else:
             raise ValueError("Neither env or eval_env was provided.")
 
-    def setup_processor(self, processor_class, processor_kwargs):
+    def setup_processor(self, processor_class: Optional[Type[Processor]], processor_kwargs: Dict) -> None:
         if processor_class is None:
             self.processor = IdentityProcessor(self.observation_space, self.action_space)
         else:
@@ -115,14 +117,14 @@ class Algorithm(ABC):
         if self.processor.supports_gpu:  # move it to device if it supports GPU computation.
             self.processor = self.processor.to(self.device)
 
-    def setup_network(self, network_class, network_kwargs):
+    def setup_network(self, network_class: Type[torch.nn.Module], network_kwargs: Dict) -> None:
         self.network = network_class(self.observation_space, self.action_space, **network_kwargs).to(self.device)
 
-    def setup_optimizers(self, optim_class, optim_kwargs):
+    def setup_optimizers(self, optim_class: Type[torch.nn.Optim], optim_kwargs):
         # Default optimizer initialization
         self.optim["network"] = optim_class(self.network.parameters(), **optim_kwargs)
 
-    def setup_datasets(self):
+    def setup_datasets(self) -> None:
         """
         Setup the datasets. Note that this is called only during the learn method and thus doesn't take any arguments.
         Everything must be saved apriori. This is done to ensure that we don't need to load all of the data to load
@@ -138,7 +140,7 @@ class Algorithm(ABC):
         else:
             self.validation_dataset = None
 
-    def save(self, path, extension):
+    def save(self, path: str, extension: str) -> None:
         """
         Saves a checkpoint of the model and the optimizers
         """
@@ -147,13 +149,13 @@ class Algorithm(ABC):
         save_dict.update(self._save_extras())
         torch.save(save_dict, os.path.join(path, extension + ".pt"))
 
-    def _save_extras(self):
+    def _save_extras(self) -> None:
         """
         override this method to return any extra values or tensors that should be saved
         """
         return {}
 
-    def load(self, checkpoint, initial_lr=None, strict=True):
+    def load(self, checkpoint: str, initial_lr: Optional[float] = None, strict: bool = True) -> None:
         """
         Loads the model and its associated checkpoints.
         """
@@ -183,13 +185,13 @@ class Algorithm(ABC):
 
         self._load_extras(checkpoint)
 
-    def _load_extras(self, checkpoint):
+    def _load_extras(self, checkpoint: Any):
         """
         override this method to load any extra values or tensors that were saved
         """
         return
 
-    def seed(self, seed):
+    def seed(self, seed: int) -> None:
         torch.manual_seed(seed)
         np.random.seed(seed)
         random.seed(seed)
@@ -199,21 +201,21 @@ class Algorithm(ABC):
             self.eval_env.seed(seed)
 
     @property
-    def steps(self):
+    def steps(self) -> int:
         return self._steps
 
     @property
-    def epochs(self):
+    def epochs(self) -> int:
         return self._epochs
 
     @property
-    def total_steps(self):
+    def total_steps(self) -> int:
         if hasattr(self, "_total_steps"):
             return self._total_steps
         else:
             raise ValueError("alg.train has not been called, no total step count available.")
 
-    def _format_batch(self, batch):
+    def _format_batch(self, batch: Any) -> Any:
         # Convert items to tensor if they are not.
         if not utils.contains_tensors(batch):
             batch = utils.to_tensor(batch)
@@ -228,21 +230,21 @@ class Algorithm(ABC):
 
     def train(
         self,
-        path,
-        total_steps,
-        schedule=None,
-        schedule_kwargs={},
-        log_freq=100,
-        eval_freq=1000,
-        max_eval_steps=-1,
-        workers=4,
-        loss_metric="loss",
-        profile_freq=-1,
-        use_wandb=False,
-        x_axis="steps",
-        eval_fn=None,
-        eval_kwargs={},
-    ):
+        path: str,
+        total_steps: int,
+        schedule: Optional[Any] = None,
+        schedule_kwargs: Dict = {},
+        log_freq: int = 100,
+        eval_freq: int = 1000,
+        max_eval_steps: int = -1,
+        workers: Optional[int] = 4,
+        loss_metric: Optional[str] = "loss",
+        profile_freq: int = -1,
+        use_wandb: bool = False,
+        x_axis: str = "steps",
+        eval_fn: Optional[Any] = None,
+        eval_kwargs: Dict = {},
+    ) -> None:
         writers = ["tb", "csv"]
         if use_wandb:
             writers.append("wandb")
@@ -418,40 +420,40 @@ class Algorithm(ABC):
         logger.close()
 
     @abstractmethod
-    def _train_step(self, batch):
+    def _train_step(self, batch: Any) -> Dict:
         """
         Train the model. Should return a dict of loggable values
         """
         pass
 
     @abstractmethod
-    def _validation_step(self, batch):
+    def _validation_step(self, batch: Any) -> Dict:
         """
         perform a validation step. Should return a dict of loggable values.
         """
         pass
 
-    def _setup_train(self):
+    def _setup_train(self) -> None:
         """
         Does nothing by default. Is called prior to running the training loop.
         """
         pass
 
-    def _validation_extras(self, path, step, dataloader):
+    def _validation_extras(self, path: str, step: int, dataloader: Optional[torch.utils.data.Dataloader]) -> Dict:
         """
         perform any extra validation operations
         """
         return {}
 
-    def train_mode(self):
+    def train_mode(self) -> None:
         self.network.train()
         self.processor.train()
 
-    def eval_mode(self):
+    def eval_mode(self) -> None:
         self.network.eval()
         self.processor.eval()
 
-    def _predict(self, batch, **kwargs):
+    def _predict(self, batch: Any, **kwargs) -> Any:
         """
         Internal prediction function, can be overridden
         By default, we call torch.no_grad(). If this behavior isn't desired,
@@ -466,7 +468,7 @@ class Algorithm(ABC):
                 pred = self.network(batch)
         return pred
 
-    def predict(self, batch, is_batched=False, **kwargs):
+    def predict(self, batch: Any, is_batched: bool = False, **kwargs) -> Any:
         is_np = not utils.contains_tensors(batch)
         if not is_batched:
             # Unsqeeuze everything
