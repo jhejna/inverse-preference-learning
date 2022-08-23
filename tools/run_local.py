@@ -20,8 +20,8 @@ if __name__ == "__main__":
 
     # Add Taskset and GPU arguments
     args = parser.parse_args()
-    assert isinstance(args.valid_gpus, list) or args.gpus is None, "Valid GPUs must be a list of ints or None."
-    assert isinstance(args.valid_cpus, list) or args.cpus is None, "Valid CPUs must be a list"
+    assert isinstance(args.valid_gpus, list) or args.valid_gpus is None, "Valid GPUs must be a list of ints or None."
+    assert isinstance(args.valid_cpus, list) or args.valid_cpus is None, "Valid CPUs must be a list"
     if args.gpus is not None:
         assert (
             isinstance(args.valid_gpus, list) and len(args.valid_gpus) >= args.gpus
@@ -30,10 +30,10 @@ if __name__ == "__main__":
     scripts = utils.get_scripts(args)
 
     if args.valid_cpus is None:
-        args.cpus = ["0-" + str(os.cpu_count())]
+        args.valid_cpus = ["0-" + str(os.cpu_count())]
 
     cpu_list = []  # Populate CPU list with a list of all valid CPU cores [1,2,3,4,5,6, ...] etc.
-    for cpu_item in args.cpus:
+    for cpu_item in args.valid_cpus:
         if isinstance(cpu_item, str) and "-" in cpu_item:
             # We have a CPU range
             cpu_min, cpu_max = cpu_item.split("-")
@@ -41,9 +41,11 @@ if __name__ == "__main__":
             cpu_list.extend(list(range(cpu_min, cpu_max)))
         else:
             cpu_list.append(int(cpu_item))
-    assert len(cpu_list) >= args.cpus, "Must have more valid CPUs than cpus per script, otherwise nothing can launch"
+    assert (
+        len(cpu_list) >= args.cpus or args.cpus is None
+    ), "Must have more valid CPUs than cpus per script, otherwise nothing can launch"
 
-    gpu_list = args.valid_gpus
+    gpu_list = [] if args.valid_gpus is None else args.valid_gpus
 
     job_list = []
 
@@ -73,6 +75,9 @@ if __name__ == "__main__":
                     if args.use_taskset:
                         command_list.extend(["taskset", "-c", ",".join(job_cpus)])
                     command_list.extend(["python", entry_point])
+                    for arg_name, arg_value in script_args.items():
+                        command_list.append("--" + arg_name)
+                        command_list.append(str(arg_value))
                     if job_gpus is not None:
                         env = os.environ
                         env["CUDA_VISIBLE_DEVICES"] = ",".join(job_gpus)
