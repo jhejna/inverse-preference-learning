@@ -1,21 +1,19 @@
-from cmath import log
-import os
-import time
-import torch
-import numpy as np
-import random
 import copy
-
+import os
+import random
+import time
 from abc import ABC, abstractmethod
 from collections import defaultdict
 
-import research
+import numpy as np
+import torch
+
 from research.processors.base import IdentityProcessor
+from research.utils import evaluate, utils
 from research.utils.logger import Logger
-from research.utils import utils
-from research.utils import evaluate
 
 MAX_VALID_METRICS = {"reward", "accuracy", "success", "is_success"}
+
 
 def log_from_dict(logger, metric_lists, prefix):
     keys_to_remove = []
@@ -29,29 +27,33 @@ def log_from_dict(logger, metric_lists, prefix):
     for key in keys_to_remove:
         del metric_lists[key]
 
+
 def _worker_init_fn(worker_id):
     seed = torch.utils.data.get_worker_info().seed
-    seed = seed % (2**32 - 1) # Reduce to valid 32bit unsigned range
+    seed = seed % (2**32 - 1)  # Reduce to valid 32bit unsigned range
     np.random.seed(seed)
     random.seed(seed)
 
+
 class Algorithm(ABC):
-
-    def __init__(self, env, network_class, dataset_class, 
-                       network_kwargs={}, dataset_kwargs={},
-                       device="auto",
-                       optim_class=torch.optim.Adam,
-                       optim_kwargs={
-                           "lr": 0.0001
-                       },
-                       processor_class=None,
-                       processor_kwargs={},
-                       checkpoint=None,
-                       validation_dataset_kwargs=None,
-                       collate_fn=None,
-                       batch_size=64,
-                       eval_env=None):
-
+    def __init__(
+        self,
+        env,
+        network_class,
+        dataset_class,
+        network_kwargs={},
+        dataset_kwargs={},
+        device="auto",
+        optim_class=torch.optim.Adam,
+        optim_kwargs={"lr": 0.0001},
+        processor_class=None,
+        processor_kwargs={},
+        checkpoint=None,
+        validation_dataset_kwargs=None,
+        collate_fn=None,
+        batch_size=64,
+        eval_env=None,
+    ):
         # Save relevant values
         self.env = env
         self.eval_env = eval_env
@@ -67,7 +69,7 @@ class Algorithm(ABC):
             device = "cuda" if torch.cuda.is_available() else "cpu"
         self.device = torch.device(device)
 
-        # Setup the data preprocessor first. Thus, if we need to reference it in 
+        # Setup the data preprocessor first. Thus, if we need to reference it in
         # network setup we can.
         self.setup_processor(processor_class, processor_kwargs)
 
@@ -109,8 +111,8 @@ class Algorithm(ABC):
             self.processor = IdentityProcessor(self.observation_space, self.action_space)
         else:
             self.processor = processor_class(self.observation_space, self.action_space, **processor_kwargs)
-        
-        if self.processor.supports_gpu: # move it to device if it supports GPU computation.
+
+        if self.processor.supports_gpu:  # move it to device if it supports GPU computation.
             self.processor = self.processor.to(self.device)
 
     def setup_network(self, network_class, network_kwargs):
@@ -118,70 +120,73 @@ class Algorithm(ABC):
 
     def setup_optimizers(self, optim_class, optim_kwargs):
         # Default optimizer initialization
-        self.optim['network'] = optim_class(self.network.parameters(), **optim_kwargs)
+        self.optim["network"] = optim_class(self.network.parameters(), **optim_kwargs)
 
     def setup_datasets(self):
-        '''
+        """
         Setup the datasets. Note that this is called only during the learn method and thus doesn't take any arguments.
-        Everything must be saved apriori. This is done to ensure that we don't need to load all of the data to load the model.
-        '''
+        Everything must be saved apriori. This is done to ensure that we don't need to load all of the data to load
+        the model.
+        """
         self.dataset = self.dataset_class(self.observation_space, self.action_space, **self.dataset_kwargs)
-        if not self.validation_dataset_kwargs is None:
+        if self.validation_dataset_kwargs is not None:
             validation_dataset_kwargs = copy.deepcopy(self.dataset_kwargs)
             validation_dataset_kwargs.update(self.validation_dataset_kwargs)
-            self.validation_dataset = self.dataset_class(self.observation_space, self.action_space, **validation_dataset_kwargs)
+            self.validation_dataset = self.dataset_class(
+                self.observation_space, self.action_space, **validation_dataset_kwargs
+            )
         else:
             self.validation_dataset = None
 
     def save(self, path, extension):
-        '''
+        """
         Saves a checkpoint of the model and the optimizers
-        '''
+        """
         optim = {k: v.state_dict() for k, v in self.optim.items()}
-        save_dict = {"network" : self.network.state_dict(), "optim": optim, "processor": self.processor.state_dict()}
+        save_dict = {"network": self.network.state_dict(), "optim": optim, "processor": self.processor.state_dict()}
         save_dict.update(self._save_extras())
         torch.save(save_dict, os.path.join(path, extension + ".pt"))
 
     def _save_extras(self):
-        '''
+        """
         override this method to return any extra values or tensors that should be saved
-        '''
+        """
         return {}
 
     def load(self, checkpoint, initial_lr=None, strict=True):
-        '''
+        """
         Loads the model and its associated checkpoints.
-        '''
+        """
         print("[research] loading checkpoint:", checkpoint)
         checkpoint = torch.load(checkpoint, map_location=self.device)
-        self.network.load_state_dict(checkpoint['network'], strict=strict)
-        self.processor.load_state_dict(checkpoint['processor'], strict=strict)
-        
+        self.network.load_state_dict(checkpoint["network"], strict=strict)
+        self.processor.load_state_dict(checkpoint["processor"], strict=strict)
+
         for k, v in self.optim.items():
-            if strict and k not in checkpoint['optim']:
+            if strict and k not in checkpoint["optim"]:
                 raise ValueError("Strict mode was enabled, but couldn't find optimizer key")
-            elif k not in checkpoint['optim']:
+            elif k not in checkpoint["optim"]:
                 continue
 
             try:
-                self.optim[k].load_state_dict(checkpoint['optim'][k])
+                self.optim[k].load_state_dict(checkpoint["optim"][k])
             except ValueError as e:
                 if strict:
                     raise e
                 else:
                     continue
-                
+
         # make sure that we reset the learning rate in case we decide to not use scheduling for finetuning.
-        if not initial_lr is None:
+        if initial_lr is not None:
             for param_group in self.optim.param_groups:
-                param_group['lr'] = initial_lr
+                param_group["lr"] = initial_lr
 
         self._load_extras(checkpoint)
 
     def _load_extras(self, checkpoint):
-        '''
+        """
         override this method to load any extra values or tensors that were saved
-        '''
+        """
         return
 
     def seed(self, seed):
@@ -214,20 +219,33 @@ class Algorithm(ABC):
             batch = utils.to_tensor(batch)
         if self.processor.supports_gpu:
             # Move to CUDA first.
-            batch = utils.to_device(batch, self.device) 
+            batch = utils.to_device(batch, self.device)
             batch = self.processor(batch)
         else:
             batch = self.processor(batch)
             batch = utils.to_device(batch, self.device)
         return batch
 
-    def train(self, path, total_steps, schedule=None, schedule_kwargs={}, 
-                    log_freq=100, eval_freq=1000, max_eval_steps=-1, workers=4, loss_metric="loss", 
-                    profile_freq=-1, use_wandb=False, x_axis="steps", eval_fn=None, eval_kwargs={}):
-        
-        writers = ['tb', 'csv']
+    def train(
+        self,
+        path,
+        total_steps,
+        schedule=None,
+        schedule_kwargs={},
+        log_freq=100,
+        eval_freq=1000,
+        max_eval_steps=-1,
+        workers=4,
+        loss_metric="loss",
+        profile_freq=-1,
+        use_wandb=False,
+        x_axis="steps",
+        eval_fn=None,
+        eval_kwargs={},
+    ):
+        writers = ["tb", "csv"]
         if use_wandb:
-            writers.append('wandb')
+            writers.append("wandb")
         logger = Logger(path=path, writers=writers)
 
         # Construct the dataloaders.
@@ -235,17 +253,24 @@ class Algorithm(ABC):
         shuffle = not issubclass(self.dataset_class, torch.utils.data.IterableDataset)
         pin_memory = self.device.type == "cuda"
         worker_init_fn = _worker_init_fn if workers > 0 else None
-        dataloader = torch.utils.data.DataLoader(self.dataset, batch_size=self.batch_size, 
-                                                 shuffle=shuffle, 
-                                                 num_workers=workers, worker_init_fn=worker_init_fn,
-                                                 pin_memory=pin_memory, 
-                                                 collate_fn=self.collate_fn)
+        dataloader = torch.utils.data.DataLoader(
+            self.dataset,
+            batch_size=self.batch_size,
+            shuffle=shuffle,
+            num_workers=workers,
+            worker_init_fn=worker_init_fn,
+            pin_memory=pin_memory,
+            collate_fn=self.collate_fn,
+        )
         if self.validation_dataset is not None:
-            validation_dataloader = torch.utils.data.DataLoader(self.validation_dataset, batch_size=self.batch_size, 
-                                                            shuffle=shuffle, 
-                                                            num_workers=0, 
-                                                            pin_memory=False, # Not for the validation dataset
-                                                            collate_fn=self.collate_fn)
+            validation_dataloader = torch.utils.data.DataLoader(
+                self.validation_dataset,
+                batch_size=self.batch_size,
+                shuffle=shuffle,
+                num_workers=0,
+                pin_memory=False,  # Not for the validation dataset
+                collate_fn=self.collate_fn,
+            )
         else:
             validation_dataloader = None
 
@@ -253,7 +278,9 @@ class Algorithm(ABC):
         schedulers = {}
         if schedule is not None:
             for name, opt in self.optim.items():
-                schedulers[name] = torch.optim.lr_scheduler.LambdaLR(opt, lr_lambda=schedule(total_steps, **schedule_kwargs))
+                schedulers[name] = torch.optim.lr_scheduler.LambdaLR(
+                    opt, lr_lambda=schedule(total_steps, **schedule_kwargs)
+                )
 
         # Grab the correct evaluation function
         eval_fn = None if eval_fn is None else vars(evaluate)[eval_fn]
@@ -264,10 +291,10 @@ class Algorithm(ABC):
         self._total_steps = total_steps
         current_step = 0
         train_metric_lists = defaultdict(list)
-        best_validation_metric = -1*float('inf') if loss_metric in MAX_VALID_METRICS else float('inf')
+        best_validation_metric = -1 * float("inf") if loss_metric in MAX_VALID_METRICS else float("inf")
         last_train_log = 0
         last_validation_log = 0
-        
+
         # Setup training
         self._setup_train()
         self.network.train()
@@ -275,21 +302,20 @@ class Algorithm(ABC):
         # Setup profiling immediately before we start the loop.
         start_time = current_time = time.time()
         profiling_metric_lists = defaultdict(list)
-        
-        while current_step < total_steps:
 
+        while current_step < total_steps:
             for batch in dataloader:
                 # Profiling
                 if profile_freq > 0 and self._steps % profile_freq == 0:
                     stop_time = time.time()
-                    profiling_metric_lists['dataset'].append(stop_time - current_time)
+                    profiling_metric_lists["dataset"].append(stop_time - current_time)
                     current_time = stop_time
 
                 batch = self._format_batch(batch)
 
                 if profile_freq > 0 and self._steps % profile_freq == 0:
                     stop_time = time.time()
-                    profiling_metric_lists['preprocess'].append(stop_time - current_time)
+                    profiling_metric_lists["preprocess"].append(stop_time - current_time)
                     current_time = stop_time
 
                 # Train the network
@@ -300,7 +326,7 @@ class Algorithm(ABC):
 
                 if profile_freq > 0 and self._steps % profile_freq == 0:
                     stop_time = time.time()
-                    profiling_metric_lists['train_step'].append(stop_time - current_time)
+                    profiling_metric_lists["train_step"].append(stop_time - current_time)
 
                 # Increment the number of training steps.
                 self._steps += 1
@@ -322,7 +348,9 @@ class Algorithm(ABC):
                     current_time = time.time()
                     logger.record("time/steps", self._steps)
                     logger.record("time/epochs", self._epochs)
-                    logger.record("time/steps_per_second", (current_step - last_train_log) / (current_time - start_time))
+                    logger.record(
+                        "time/steps_per_second", (current_step - last_train_log) / (current_time - start_time)
+                    )
                     start_time = current_time
                     # Record Other metrics
                     for name, scheduler in schedulers.items():
@@ -335,7 +363,7 @@ class Algorithm(ABC):
                 if (current_step - last_validation_log) >= eval_freq:
                     self.eval_mode()
                     current_validation_metric = None
-                    if not validation_dataloader is None:
+                    if validation_dataloader is not None:
                         eval_steps = 0
                         validation_metric_lists = defaultdict(list)
                         for batch in validation_dataloader:
@@ -374,9 +402,9 @@ class Algorithm(ABC):
                         best_validation_metric = current_validation_metric
 
                     # Eval Logger Dump to CSV
-                    logger.dump(step=current_step, eval=True) # Mark True on the eval flag
+                    logger.dump(step=current_step, eval=True)  # Mark True on the eval flag
                     last_validation_log = current_step
-                    self.save(path, "final_model") # Also save the final model every eval period.
+                    self.save(path, "final_model")  # Also save the final model every eval period.
                     self.train_mode()
 
                 # Profiling
@@ -385,34 +413,34 @@ class Algorithm(ABC):
 
                 if current_step >= total_steps:
                     break
-                
+
             self._epochs += 1
         logger.close()
 
     @abstractmethod
     def _train_step(self, batch):
-        '''
+        """
         Train the model. Should return a dict of loggable values
-        '''
+        """
         pass
 
     @abstractmethod
     def _validation_step(self, batch):
-        '''
+        """
         perform a validation step. Should return a dict of loggable values.
-        '''
+        """
         pass
 
     def _setup_train(self):
-        '''
+        """
         Does nothing by default. Is called prior to running the training loop.
-        '''
+        """
         pass
 
     def _validation_extras(self, path, step, dataloader):
-        '''
+        """
         perform any extra validation operations
-        '''
+        """
         return {}
 
     def train_mode(self):
@@ -424,11 +452,11 @@ class Algorithm(ABC):
         self.processor.eval()
 
     def _predict(self, batch, **kwargs):
-        '''
+        """
         Internal prediction function, can be overridden
         By default, we call torch.no_grad(). If this behavior isn't desired,
         override the _predict funciton in your algorithm.
-        '''
+        """
         with torch.no_grad():
             if hasattr(self.network, "predict"):
                 pred = self.network.predict(batch, **kwargs)

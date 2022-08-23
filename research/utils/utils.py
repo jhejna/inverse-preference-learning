@@ -1,6 +1,7 @@
-import torch
 import gym
 import numpy as np
+import torch
+
 
 def to_device(batch, device):
     if isinstance(batch, dict):
@@ -12,6 +13,7 @@ def to_device(batch, device):
     else:
         raise ValueError("Unsupported type passed to `to_device`")
     return batch
+
 
 def to_tensor(batch):
     if isinstance(batch, dict):
@@ -27,6 +29,7 @@ def to_tensor(batch):
         raise ValueError("Unsupported type passed to `to_tensor`")
     return batch
 
+
 def to_np(batch):
     if isinstance(batch, dict):
         batch = {k: to_np(v) for k, v in batch.items()}
@@ -37,6 +40,7 @@ def to_np(batch):
     else:
         raise ValueError("Unsupported type passed to `to_np`")
     return batch
+
 
 def unsqueeze(batch, dim):
     if isinstance(batch, dict):
@@ -53,6 +57,7 @@ def unsqueeze(batch, dim):
         raise ValueError("Unsupported type passed to `unsqueeze`")
     return batch
 
+
 def squeeze(batch, dim):
     if isinstance(batch, dict):
         batch = {k: squeeze(v, dim) for k, v in batch.items()}
@@ -65,6 +70,7 @@ def squeeze(batch, dim):
     else:
         raise ValueError("Unsupported type passed to `squeeze`")
     return batch
+
 
 def get_from_batch(batch, start, end=None):
     if isinstance(batch, dict):
@@ -79,6 +85,7 @@ def get_from_batch(batch, start, end=None):
     else:
         raise ValueError("Unsupported type passed to `get_from_batch`")
     return batch
+
 
 def set_in_batch(batch, value, start, end=None):
     if isinstance(batch, dict):
@@ -95,6 +102,7 @@ def set_in_batch(batch, value, start, end=None):
     else:
         raise ValueError("Unsupported type passed to `set_in_batch`")
 
+
 def batch_copy(batch):
     if isinstance(batch, dict):
         batch = {k: batch_copy(v) for k, v in batch.items()}
@@ -107,6 +115,7 @@ def batch_copy(batch):
     # Note that if we have scalars etc. we just return the value, thus no ending check.
     return batch
 
+
 def contains_tensors(batch):
     if isinstance(batch, dict):
         return any([contains_tensors(v) for v in batch.values()])
@@ -116,7 +125,8 @@ def contains_tensors(batch):
         return True
     else:
         return
-        
+
+
 def get_device(batch):
     if isinstance(batch, dict):
         return get_device(list(batch.values()))
@@ -132,12 +142,13 @@ def get_device(batch):
     else:
         return None
 
+
 def concatenate(*args, dim=0):
-    assert all([isinstance(arg, type(args[0])) for arg in args]) , "Must concatenate tensors of the same type"
+    assert all([isinstance(arg, type(args[0])) for arg in args]), "Must concatenate tensors of the same type"
     if isinstance(args[0], dict):
-        return {k : concatenate(*[arg[k] for arg in args], dim=dim) for k in args[0].keys()}
+        return {k: concatenate(*[arg[k] for arg in args], dim=dim) for k in args[0].keys()}
     elif isinstance(args[0], list) or isinstance(args[0], tuple):
-        batch = [concatenate(*[arg[i] for arg in args], dim=dim) for i in range(len(args[0]))]
+        return [concatenate(*[arg[i] for arg in args], dim=dim) for i in range(len(args[0]))]
     elif isinstance(args[0], np.ndarray):
         return np.concatenate(args, axis=dim)
     elif isinstance(args[0], torch.Tensor):
@@ -145,8 +156,8 @@ def concatenate(*args, dim=0):
     else:
         raise ValueError("Unsupported type passed to `concatenate`")
 
-class PrintNode(torch.nn.Module):
 
+class PrintNode(torch.nn.Module):
     def __init__(self, name=""):
         super().__init__()
         self.name = name
@@ -154,6 +165,7 @@ class PrintNode(torch.nn.Module):
     def forward(self, x):
         print(self.name, x.shape)
         return x
+
 
 def np_dataset_alloc(space, capacity, begin_pad=tuple(), end_pad=tuple()):
     if isinstance(space, gym.spaces.Dict):
@@ -173,22 +185,23 @@ def np_dataset_alloc(space, capacity, begin_pad=tuple(), end_pad=tuple()):
     else:
         raise ValueError("Invalid space provided")
 
+
 def fetch_from_dict(data_dict, keys):
-    '''
+    """
     inputs:
         data_dict: a nested dictionary datastrucutre
         keys: a list of string keys, with '.' separating nested items.
-    '''
+    """
     outputs = []
     if not isinstance(keys, list) and not isinstance(keys, tuple):
         keys = [keys]
     for key in keys:
-        key_parts = key.split('.')
+        key_parts = key.split(".")
         current_dict = data_dict
         while len(key_parts) > 1:
             current_dict = current_dict[key_parts[0]]
             key_parts.pop(0)
-        outputs.append(current_dict[key_parts[0]])  
+        outputs.append(current_dict[key_parts[0]])
     if len(outputs) == 1:
         outputs = outputs[0]
     return outputs

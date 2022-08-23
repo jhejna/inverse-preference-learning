@@ -23,13 +23,13 @@ checkpoint: null # A checkpoint to initialize the network from.
 
 # If you are running supervised learning, the env is likely Empty and can just be used to specify input/output spaces.
 env: EnvironmentName from envs/__init__.py
-env_kwargs: 
+env_kwargs:
   kwarg_1: value
   # More key word arguments for the environment...
 
 dataset: DatasetName from datasets/__init__.py
 dataset_kwargs:
-  
+
 validation_dataset_kwargs:
   # If you want a validation dataset, specify the kwargs here
   # If none are specified, there will be no validation dataset.

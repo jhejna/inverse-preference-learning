@@ -5,7 +5,13 @@ channels:
   - default
 dependencies:
   - python
-  
+
+  # Development
+  - black
+  - isort
+  - flake8
+  - conda-forge::pre-commit
+
   # pytorch
   - pytorch
   - cudatoolkit=11.3
@@ -40,4 +46,4 @@ dependencies:
 
   - pip
   - pip:
-      - gym<=0.25.0
+      - gym<=0.24.1
