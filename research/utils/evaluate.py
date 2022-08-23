@@ -5,8 +5,6 @@ import gym
 import numpy as np
 import torch
 
-from research.algs.base import Algorithm
-
 from . import utils
 
 MAX_METRICS = {"success", "is_success"}
@@ -67,7 +65,7 @@ class EvalMetricTracker(object):
         return metrics
 
 
-def eval_policy(env: gym.Env, model: Algorithm, num_ep: int = 10) -> Dict:
+def eval_policy(env: gym.Env, model, num_ep: int = 10) -> Dict:
     metric_tracker = EvalMetricTracker()
 
     for _ in range(num_ep):

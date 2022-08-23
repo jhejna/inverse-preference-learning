@@ -120,7 +120,7 @@ class Algorithm(ABC):
     def setup_network(self, network_class: Type[torch.nn.Module], network_kwargs: Dict) -> None:
         self.network = network_class(self.observation_space, self.action_space, **network_kwargs).to(self.device)
 
-    def setup_optimizers(self, optim_class: Type[torch.nn.Optim], optim_kwargs):
+    def setup_optimizers(self, optim_class: Type[torch.optim.Optimizer], optim_kwargs):
         # Default optimizer initialization
         self.optim["network"] = optim_class(self.network.parameters(), **optim_kwargs)
 
@@ -439,7 +439,7 @@ class Algorithm(ABC):
         """
         pass
 
-    def _validation_extras(self, path: str, step: int, dataloader: Optional[torch.utils.data.Dataloader]) -> Dict:
+    def _validation_extras(self, path: str, step: int, dataloader: Optional[torch.utils.data.DataLoader]) -> Dict:
         """
         perform any extra validation operations
         """
