@@ -32,6 +32,7 @@ def create_random_dataset(env, max_steps):
         if done:
             obs = env.reset()
             dataset.add(obs)
+            episode_length = 0
         action = env.action_space.sample()
         obs, reward, done, info = env.step(action)
         num_steps += 1

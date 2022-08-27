@@ -5,6 +5,7 @@ import shutil
 
 import cv2
 import numpy as np
+import pyrealsense2 as rs
 
 # https://stackoverflow.com/questions/12299870/computing-x-y-coordinate-3d-from-image-point
 
@@ -16,7 +17,6 @@ DESIRED_ZERO = np.array([0.395, -0.01, 0.025])  # The known 3D position of the r
 CUBE_IDS = [26, 27, 28, 29, 30, 31]  # The IDs of the markers used on the cube
 SRs = ["realsenseSR_1", "realsenseSR_2"]  # Modify to be the IDs of your real sense camera
 
-import pyrealsense2 as rs
 
 # define names of each possible ArUco tag OpenCV supports
 ARUCO_DICT = {

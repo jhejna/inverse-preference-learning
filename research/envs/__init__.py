@@ -5,6 +5,7 @@ from .empty import Empty
 # These will be loaded when we import the research package.
 from gym.envs import register
 
+
 # Register the DM Control environments.
 from dm_control import suite
 
@@ -13,12 +14,15 @@ from dm_control import suite
 # assert hasattr(<custom dm_env module>, 'SUITE')
 # suite._DOMAINS['<custom dm_env module>'] = <custom dm_env module>
 
+from metaworld.envs.mujoco.env_dict import ALL_V2_ENVIRONMENTS
+
+
 from . import point_mass
+from . import reacher
 
 assert hasattr(point_mass, "SUITE")
 suite._DOMAINS["goal_point_mass"] = point_mass
 
-from . import reacher
 
 assert hasattr(reacher, "SUITE")
 suite._DOMAINS["goal_reacher"] = reacher
@@ -44,8 +48,6 @@ for domain_name, task_name in suite._get_tasks(tag=None):
 
 # Add the meta world test environments.
 # For each one, register the different tasks.
-
-from metaworld.envs.mujoco.env_dict import ALL_V2_ENVIRONMENTS
 
 for env_name, env_cls in ALL_V2_ENVIRONMENTS.items():
     ID = f"mw_{env_name}"
@@ -73,7 +75,7 @@ register(
     kwargs={"use_quat": False, "fix_gripper": True},
 )
 
-### PyBullet Envs ###
+# PyBullet Envs
 
 register(
     id="PyBulletPandaReach-v0",

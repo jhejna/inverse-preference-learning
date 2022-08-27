@@ -9,6 +9,7 @@ from turtle import position
 
 import cv2
 import numpy as np
+import pyrealsense2 as rs
 from calibrate import IMG_HEIGHT, IMG_WIDTH, REFERENCE_ID, load_coefficients
 from imutils.video import VideoStream
 
@@ -25,7 +26,6 @@ SRs = ["realsenseSR_1", "realsenseSR_2"]
 
 DATA_PATH = "/tmp/cube_estimator.txt"
 
-import pyrealsense2 as rs
 
 # define names of each possible ArUco tag OpenCV supports
 ARUCO_DICT = {
@@ -167,7 +167,7 @@ while True:
         for markerCorner, markerID in zip(corners, ids):
             if markerID == REFERENCE_ID:
                 continue
-            if not markerID in CUBE_IDS:
+            if markerID not in CUBE_IDS:
                 continue
             rvec, tvec, markerPoints = cv2.aruco.estimatePoseSingleMarkers(
                 markerCorner, MARKER_SIZE, matrix_coefficients, distortion_coefficients

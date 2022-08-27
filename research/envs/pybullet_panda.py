@@ -331,7 +331,8 @@ class BlockPush(PandaEnv):
         self.sim.resetBasePositionAndOrientation(self.block, pos, orn)
 
     def is_grasping(self):
-        # check if there is any contact on the internal part of the fingers, to control if they are correctly touching an object
+        # check if there is any contact on the internal part of the fingers, to control if they
+        # are correctly touching an object
         obj_id = self.block
         idx_fingers = [9, 10]
 

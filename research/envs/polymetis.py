@@ -37,7 +37,8 @@ class PolyMetisEnv(gym.Env):
         else:
             raise ValueError("Invalid EE Link provided")
 
-        # Values taken from https://github.com/facebookresearch/fairo/blob/main/polymetis/polymetis/conf/robot_client/franka_hardware.yaml
+        # Values taken from:
+        # https://github.com/facebookresearch/fairo/blob/main/polymetis/polymetis/conf/robot_client/
         self.ee_pos_lower_limit = np.array([0.1, -0.45, 0.11])
         self.ee_pos_upper_limit = np.array([1.0, 0.45, 1.0])
         self.max_detla = max_delta
@@ -87,7 +88,7 @@ class PolyMetisEnv(gym.Env):
         self._desired_quat = self._ee_quat
 
         if self.initialization_noise > 0:
-            delta = self.initialization_noise * np.random.uniform(low=-1, high=1, size=ee_pos.shape)
+            delta = self.initialization_noise * np.random.uniform(low=-1, high=1, size=self._ee_pos.shape)
             ee_pos = self._ee_pos.cpu().numpy() + delta
             time_to_go = 20 * self.time_to_go if self.time_to_go is not None else None
             self.robot.move_to_ee_pose(position=ee_pos, orientation=self._desired_quat, time_to_go=time_to_go)

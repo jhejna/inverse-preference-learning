@@ -3,13 +3,12 @@ import copy
 import itertools
 import os
 import tempfile
+from typing import Any, Dict, Optional, Tuple, Type, Union
 
+import gym
 import imageio
 import numpy as np
 import torch
-import gym
-
-from typing import Any, Dict, Type, Union, Optional, Tuple
 
 from research.datasets.feedback_buffer import FeedbackLabelDataset
 from research.datasets.replay_buffer import ReplayBuffer
@@ -21,7 +20,9 @@ from .base import Algorithm
 
 
 class RunningStats(object):
-    def __init__(self, epsilon: float=1e-5, shape: Tuple=(), device: Optional[Union[str, torch.device]]=None) -> None:
+    def __init__(
+        self, epsilon: float = 1e-5, shape: Tuple = (), device: Optional[Union[str, torch.device]] = None
+    ) -> None:
         self._mean = torch.zeros(shape, device=device)
         self._var = torch.ones(shape, device=device)
         self._count = 0
@@ -68,29 +69,29 @@ class PEBBLE(Algorithm):
         target_freq: int = 2,
         init_steps: int = 1000,
         # all of the other kwargs for reward
-        reward_freq: int =128,
-        reward_epochs: Union[int, float] =10,
-        max_feedback: int =1000,
-        init_feedback_size: int=64,
-        feedback_sample_multiplier: float=10,
-        reward_batch_size: int=256,
-        segment_size: int=25,
-        feedback_schedule: str="constant",
-        feedback_replay_window: int=1000000,
-        feedback_preload_path: Optional[str]=None,
-        reward_optim: Type[torch.optim.Optimizer]=torch.optim.Adam,
+        reward_freq: int = 128,
+        reward_epochs: Union[int, float] = 10,
+        max_feedback: int = 1000,
+        init_feedback_size: int = 64,
+        feedback_sample_multiplier: float = 10,
+        reward_batch_size: int = 256,
+        segment_size: int = 25,
+        feedback_schedule: str = "constant",
+        feedback_replay_window: int = 1000000,
+        feedback_preload_path: Optional[str] = None,
+        reward_optim: Type[torch.optim.Optimizer] = torch.optim.Adam,
         reward_optim_kwargs: Dict = {"lr": 0.0003},
-        reset_reward_net: bool=False,
-        reward_shift: float=0,
-        reward_scale: float=1,
-        human_feedback: bool =False,
-        num_uniform_feedback: int=0,
+        reset_reward_net: bool = False,
+        reward_shift: float = 0,
+        reward_scale: float = 1,
+        human_feedback: bool = False,
+        num_uniform_feedback: int = 0,
         # Unsupervised Parameters
-        unsup_steps: int=0,
-        k_nearest_neighbors: int=5,
-        unsup_batch_size: int=512,
-        num_unsup_batches: int=20,
-        normalize_state_entropy: bool=True,
+        unsup_steps: int = 0,
+        k_nearest_neighbors: int = 5,
+        unsup_batch_size: int = 512,
+        num_unsup_batches: int = 20,
+        normalize_state_entropy: bool = True,
         **kwargs,
     ):
         # Save values needed for optim setup.
@@ -111,7 +112,7 @@ class PEBBLE(Algorithm):
         self.unsup_steps = unsup_steps
 
         self.reward_init_steps = self.init_steps + self.unsup_steps
-        
+
         # Segment parameters
         self.segment_size = segment_size
 
@@ -216,7 +217,8 @@ class PEBBLE(Algorithm):
             cleanup=self.dataset.cleanup,
             preload_path=self.feedback_preload_path,
         )
-        # Check the cleanup value. Note this has to be done before multi-threading starts when iter is called on the dataloader.
+        # Check the cleanup value. Note this has to be done before multi-threading starts when iter
+        # is called on the dataloader.
         if self.dataset.cleanup:
             print("[NOTICE] setting replay buffer to not clean-up for compatibility with PEBBLE")
             self.dataset.cleanup = False
@@ -628,7 +630,7 @@ class PEBBLE(Algorithm):
             imageio.imwrite(out_path, grid)
         return {}
 
-    def _render_segment(self, states: np.npdarray, height: int=128, width: int=128) -> np.ndarray:
+    def _render_segment(self, states: np.npdarray, height: int = 128, width: int = 128) -> np.ndarray:
         assert self.eval_env is not None and hasattr(self.eval_env, "set_state")
         imgs = []
         max_imgs = 12
