@@ -41,8 +41,8 @@ class Algorithm(ABC):
     def __init__(
         self,
         env: gym.Env,
-        network_class: torch.nn.Module,
-        dataset_class: Union[torch.utils.data.IterableDataset, torch.utils.data.Dataset],
+        network_class: Type[torch.nn.Module],
+        dataset_class: Union[Type[torch.utils.data.IterableDataset], Type[torch.utils.data.Dataset]],
         network_kwargs: Dict = {},
         dataset_kwargs: Dict = {},
         device: Union[str, torch.device] = "auto",
@@ -183,9 +183,9 @@ class Algorithm(ABC):
             for param_group in self.optim.param_groups:
                 param_group["lr"] = initial_lr
 
-        self._load_extras(checkpoint)
+        self._load_extras(checkpoint, strict=strict)
 
-    def _load_extras(self, checkpoint: Any) -> None:
+    def _load_extras(self, checkpoint: Any, strict: bool = True) -> None:
         """
         override this method to load any extra values or tensors that were saved
         """

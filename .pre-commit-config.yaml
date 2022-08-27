@@ -36,4 +36,4 @@ repos:
         additional_dependencies: [flake8-isort]
         args:
           - "--max-line-length=120"
-          - "--ignore=E203,F401,E722"
+          - "--ignore=E203,F401,E722,E712,W503"
