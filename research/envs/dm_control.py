@@ -1,29 +1,29 @@
-import gym
-from dm_control import suite
-import dm_env
-from dm_env import specs
-import numpy as np
-from gym import spaces
 import collections
+
+import dm_env
+import gym
+import numpy as np
+from dm_control import suite
 from dm_control.rl.control import FLAT_OBSERVATION_KEY
 from dm_control.suite.wrappers import action_scale, pixels
+from dm_env import specs
+from gym import spaces
 
-'''
+"""
 Code in this file was largely borrowed from Denis Yarats. Here are the appropriate methods
 DRQv2: https://github.com/facebookresearch/drqv2/blob/main/dmc.py
 
 Note, however, that parts of it have been changed to afford a greater level of flexibility.
-'''
+"""
+
 
 class ActionDTypeWrapper(dm_env.Environment):
     def __init__(self, env, dtype):
         self._env = env
         wrapped_action_spec = env.action_spec()
-        self._action_spec = specs.BoundedArray(wrapped_action_spec.shape,
-                                               dtype,
-                                               wrapped_action_spec.minimum,
-                                               wrapped_action_spec.maximum,
-                                               'action')
+        self._action_spec = specs.BoundedArray(
+            wrapped_action_spec.shape, dtype, wrapped_action_spec.minimum, wrapped_action_spec.maximum, "action"
+        )
 
     def step(self, action):
         action = action.astype(self._env.action_spec().dtype)
@@ -40,6 +40,7 @@ class ActionDTypeWrapper(dm_env.Environment):
 
     def __getattr__(self, name):
         return getattr(self._env, name)
+
 
 class ActionRepeatWrapper(dm_env.Environment):
     def __init__(self, env, num_repeats):
@@ -70,6 +71,7 @@ class ActionRepeatWrapper(dm_env.Environment):
     def __getattr__(self, name):
         return getattr(self._env, name)
 
+
 class FlattenWrapper(dm_env.Environment):
     def __init__(self, env):
         self._env = env
@@ -83,7 +85,7 @@ class FlattenWrapper(dm_env.Environment):
         num_elem = sum([np.prod(v.shape) for v in original_spec.values()])
         self._obs_spec = collections.OrderedDict()
         self._obs_spec[FLAT_OBSERVATION_KEY] = specs.Array([num_elem], dtype, name=FLAT_OBSERVATION_KEY)
-        
+
     def _transform_time_step(self, time_step):
         observation = time_step.observation
         if isinstance(observation, collections.OrderedDict):
@@ -91,17 +93,19 @@ class FlattenWrapper(dm_env.Environment):
         else:
             # Keep a consistent ordering for other mappings.
             keys = sorted(observation.keys())
-        observation_arrays = [np.array([observation[k]]) if np.isscalar(observation[k]) else observation[k].ravel() for k in keys]
+        observation_arrays = [
+            np.array([observation[k]]) if np.isscalar(observation[k]) else observation[k].ravel() for k in keys
+        ]
         observation = type(observation)([(FLAT_OBSERVATION_KEY, np.concatenate(observation_arrays))])
         return time_step._replace(observation=observation)
 
     def step(self, action):
         time_step = self._env.step(action)
         return self._transform_time_step(time_step)
-        
+
     def observation_spec(self):
         return self._obs_spec
-        
+
     def action_spec(self):
         return self._env.action_spec()
 
@@ -112,11 +116,13 @@ class FlattenWrapper(dm_env.Environment):
     def __getattr__(self, name):
         return getattr(self._env, name)
 
+
 class ChannelsFirstWrapper(dm_env.Environment):
-    '''
+    """
     Warning: This wrapper does an inplace operation on some of the arrays
     I think its fine (and better for mem), but there could be issues later.
-    '''
+    """
+
     def __init__(self, env, pixels_key):
         self._env = env
         self._pixels_key = pixels_key
@@ -130,7 +136,7 @@ class ChannelsFirstWrapper(dm_env.Environment):
         h, w, c = pixel_spec.shape
         observation_spec[self._pixels_key] = specs.Array((c, h, w), dtype=pixel_spec.dtype, name=pixel_spec.name)
         self._obs_spec = observation_spec
-        
+
     def _transform_time_step(self, time_step):
         observation = time_step.observation
         observation[self._pixels_key] = observation[self._pixels_key].transpose(2, 0, 1).copy()
@@ -139,10 +145,10 @@ class ChannelsFirstWrapper(dm_env.Environment):
     def step(self, action):
         time_step = self._env.step(action)
         return self._transform_time_step(time_step)
-        
+
     def observation_spec(self):
         return self._obs_spec
-        
+
     def action_spec(self):
         return self._env.action_spec()
 
@@ -153,12 +159,12 @@ class ChannelsFirstWrapper(dm_env.Environment):
     def __getattr__(self, name):
         return getattr(self._env, name)
 
-class StackWrapper(dm_env.Environment):
 
+class StackWrapper(dm_env.Environment):
     def __init__(self, env, stack):
         self._env = env
         self._stack = stack
-        
+
         self._queues = collections.OrderedDict()
         self._obs_spec = collections.OrderedDict()
         for k, v in env.observation_spec().items():
@@ -167,7 +173,7 @@ class StackWrapper(dm_env.Environment):
             new_shape = np.concatenate([[stack], v.shape], axis=0)
             self._obs_spec[k] = specs.Array(new_shape, dtype=v.dtype, name=v.name)
             self._queues[k] = collections.deque([], maxlen=stack)
-    
+
     def _transform_time_step(self, time_step):
         new_observation = collections.OrderedDict()
         for k in time_step.observation.keys():
@@ -198,12 +204,13 @@ class StackWrapper(dm_env.Environment):
     def __getattr__(self, name):
         return getattr(self._env, name)
 
+
 def _spec_to_space(spec):
-    '''
+    """
     In DM Control, observation specs are always dictionariers (usually OrderedDict)
-    That contain spec.Arrray or spec.BoundedArray. 
+    That contain spec.Arrray or spec.BoundedArray.
     Action specs are just spec.BoundedArray
-    '''
+    """
     if isinstance(spec, specs.BoundedArray):
         # Run the conversion
         dtype = np.float32 if spec.dtype == np.float64 else spec.dtype
@@ -222,33 +229,39 @@ def _spec_to_space(spec):
     else:
         raise ValueError("Invalid spec encountered.")
 
-class DMControlEnv(gym.Env):
 
-    def __init__(self, domain_name, task_name, 
-                       task_kwargs=None,
-                       environment_kwargs=None,
-                       visualize_reward=False,
-                       action_dtype=np.float32,
-                       action_repeat=1,
-                       action_minimum=None,
-                       action_maximum=None,
-                       from_pixels=False,
-                       height=84,
-                       width=84,
-                       camera_id=0,
-                       channels_first=True,
-                       flatten=False,
-                       stack=1):
-                       
-        self._pixels_key = 'pixels'
+class DMControlEnv(gym.Env):
+    def __init__(
+        self,
+        domain_name,
+        task_name,
+        task_kwargs=None,
+        environment_kwargs=None,
+        visualize_reward=False,
+        action_dtype=np.float32,
+        action_repeat=1,
+        action_minimum=None,
+        action_maximum=None,
+        from_pixels=False,
+        height=84,
+        width=84,
+        camera_id=0,
+        channels_first=True,
+        flatten=False,
+        stack=1,
+    ):
+        self._pixels_key = "pixels"
         self._height = height
         self._width = width
         self._camera_id = camera_id
 
-        env = suite.load(domain_name, task_name,
-                               task_kwargs=task_kwargs,
-                               environment_kwargs=environment_kwargs,
-                               visualize_reward=visualize_reward)
+        env = suite.load(
+            domain_name,
+            task_name,
+            task_kwargs=task_kwargs,
+            environment_kwargs=environment_kwargs,
+            visualize_reward=visualize_reward,
+        )
 
         env = ActionDTypeWrapper(env, action_dtype)
         if action_repeat > 1:
@@ -264,7 +277,7 @@ class DMControlEnv(gym.Env):
             env = FlattenWrapper(env)
         if stack > 1:
             env = StackWrapper(env, stack)
-        
+
         self._env = env
 
         # Create the equivalent gym spaces
@@ -280,11 +293,11 @@ class DMControlEnv(gym.Env):
         # Seed the environment
         if task_kwargs is None:
             task_kwargs = {}
-        self.seed(seed=task_kwargs.get('random', 1))
+        self.seed(seed=task_kwargs.get("random", 1))
 
     def __getattr__(self, name):
         return getattr(self._env, name)
-    
+
     @property
     def observation_space(self):
         return self._observation_space
@@ -309,44 +322,42 @@ class DMControlEnv(gym.Env):
 
     def step(self, action):
         time_step = self._env.step(action)
-        info = {'discount': time_step.discount}
+        info = {"discount": time_step.discount}
         if time_step.discount == 0.0:
-            info['early_termination'] = 1.0
+            info["early_termination"] = 1.0
         else:
-            info['early_termination'] = 0.0
+            info["early_termination"] = 0.0
         return self._extract_obs(time_step), time_step.reward, time_step.last(), info
 
     def reset(self):
         time_step = self._env.reset()
         return self._extract_obs(time_step)
-        
-    def render(self, mode='rgb_array', height=None, width=None, camera_id=0):
-        assert mode == 'rgb_array', 'only support rgb_array mode, given %s' % mode
+
+    def render(self, mode="rgb_array", height=None, width=None, camera_id=0):
+        assert mode == "rgb_array", "only support rgb_array mode, given %s" % mode
         height = height or self._height
         width = width or self._width
         camera_id = camera_id or self._camera_id
-        return self._env.physics.render(
-            height=height, width=width, camera_id=camera_id
-        )
+        return self._env.physics.render(height=height, width=width, camera_id=camera_id)
 
     def set_state(self, state):
-        '''
+        """
         Only implemented for the simple environments (PointMass and Reacher)
-        '''
+        """
         if isinstance(self._env, FlattenWrapper):
             time_step = self._env._env.reset()
         else:
             time_step = self._env.reset()
-        assert 'position' in time_step.observation and 'velocity' in time_step.observation
+        assert "position" in time_step.observation and "velocity" in time_step.observation
         # Get the state back from the timestep
         obs = collections.OrderedDict()
         index = 0
         for key, value in time_step.observation.items():
-            obs[key] = state[index:index+value.shape[0]]
+            obs[key] = state[index : index + value.shape[0]]
             index += value.shape[0]
         # Now set the state for position and velocity
         # Note that we cannot align other things.
         self._env.physics.data.ctrl[:] = 0
-        np.copyto(self._env._physics.data.qpos, obs['position'])
-        np.copyto(self._env._physics.data.qvel, obs['velocity'])
+        np.copyto(self._env._physics.data.qpos, obs["position"])
+        np.copyto(self._env._physics.data.qvel, obs["velocity"])
         self._env._physics.forward()

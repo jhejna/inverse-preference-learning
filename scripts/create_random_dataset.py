@@ -1,14 +1,15 @@
 import argparse
-import gym
-import research # To run environment imports
 import os
 
+import gym
+
+import research  # To run environment imports
 from research.datasets.replay_buffer import ReplayBuffer
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--env", "-e", type=str, required=True)
-parser.add_argument("--num-steps", '-n', type=int, required=True)
-parser.add_argument("--path", '-p', type=str, required=True)
+parser.add_argument("--num-steps", "-n", type=int, required=True)
+parser.add_argument("--path", "-p", type=str, required=True)
 
 args = parser.parse_args()
 
@@ -31,8 +32,8 @@ while num_steps < args.num_steps:
     action = env.action_space.sample()
     obs, reward, done, info = env.step(action)
     # Determine the discount factor.
-    if 'discount' in info:
-        discount = info['discount']
+    if "discount" in info:
+        discount = info["discount"]
     elif hasattr(env, "_max_episode_steps") and episode_length == env._max_episode_steps:
         discount = 1.0
     else:

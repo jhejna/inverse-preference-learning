@@ -1,9 +1,9 @@
 # Generate 4 AruCo markers.
 import argparse
+import os
 import sys
 
 import cv2
-import os
 import numpy as np
 
 ap = argparse.ArgumentParser()

@@ -38,7 +38,7 @@ The `gpu` argument takes in the GRES specification of the GPU resource. One unfo
 
 <<<<<<< HEAD
 ### Using the Sweeper
-The default training script `scripts/train.py` also supports parameter sweeps. Parameter sweeps are specified using `json` files. Any of the scripts in `tools` will automatically detect that a sweep is being run based on the `entry-point` and type of config file (json) being specified. An example sweep file is found on the `vision` branch. Keys in the json file are specified via strings, with periods to separate nested structions, and values are provided as lists. For example to specify a learning rate sweep, one would add `"optim_kwargs.lr" : [0.01, 0.001]`. 
+The default training script `scripts/train.py` also supports parameter sweeps. Parameter sweeps are specified using `json` files. Any of the scripts in `tools` will automatically detect that a sweep is being run based on the `entry-point` and type of config file (json) being specified. An example sweep file is found on the `vision` branch. Keys in the json file are specified via strings, with periods to separate nested structions, and values are provided as lists. For example to specify a learning rate sweep, one would add `"optim_kwargs.lr" : [0.01, 0.001]`.
 
 There are two special keys. The first `"base"` is required and specifies the path to the base config that will be modified by the sweep file. The second, `"paired_keys"` allows you to pair the values of differnet parameters in the sweep.
 

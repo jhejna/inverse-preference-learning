@@ -32,7 +32,7 @@ network_kwargs:
     output_act: ["import", "torch.nn.functional", "tanh"]
 
 batch_size: 4
-collate_fn: ["import", "research.algs.maml", "collate"] 
+collate_fn: ["import", "research.algs.maml", "collate"]
 checkpoint: null
 seed: null
 

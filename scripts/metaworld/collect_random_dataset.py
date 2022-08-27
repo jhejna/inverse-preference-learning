@@ -1,11 +1,13 @@
-import research
-from research.datasets import ReplayBuffer
-import gym
 import argparse
 import os
-import numpy as np
-import metaworld
 import random
+
+import gym
+import metaworld
+import numpy as np
+
+import research
+from research.datasets import ReplayBuffer
 
 # Seed everything for deterministic choice order.
 SEED = 0
@@ -13,12 +15,13 @@ random.seed(SEED)
 np.random.seed(SEED)
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--benchmark', '-b', type=str, default='ml1_pick-place-v2')
-parser.add_argument('--tasks-per-env', type=int, default=None)
-parser.add_argument('--num-steps', type=int, default=2500)
-parser.add_argument('--path', '-p', type=str, required=True, help="output path")
+parser.add_argument("--benchmark", "-b", type=str, default="ml1_pick-place-v2")
+parser.add_argument("--tasks-per-env", type=int, default=None)
+parser.add_argument("--num-steps", type=int, default=2500)
+parser.add_argument("--path", "-p", type=str, required=True, help="output path")
 
 args = parser.parse_args()
+
 
 def create_random_dataset(env, max_steps):
     dataset = ReplayBuffer(env.observation_space, env.action_space, capacity=args.num_steps, cleanup=False)
@@ -33,19 +36,20 @@ def create_random_dataset(env, max_steps):
         obs, reward, done, info = env.step(action)
         num_steps += 1
         # Determine the discount factor.
-        if 'discount' in info:
-            discount = info['discount']
+        if "discount" in info:
+            discount = info["discount"]
         elif hasattr(env, "_max_episode_steps") and episode_length == env._max_episode_steps:
             discount = 1.0
         else:
             discount = 1 - float(done)
-        if getattr(env, 'curr_path_length', 0) == env.max_path_length:
-            done = True # set done to true manually for meta world.
+        if getattr(env, "curr_path_length", 0) == env.max_path_length:
+            done = True  # set done to true manually for meta world.
         dataset.add(obs, action, reward, done, discount)
-    return dataset # Return the dataset object
+    return dataset  # Return the dataset object
 
-if '_' in args.benchmark:
-    benchmark, task = args.benchmark.split('_')
+
+if "_" in args.benchmark:
+    benchmark, task = args.benchmark.split("_")
     task = (task,)
 else:
     benchmark, task = args.benchmark, ()
@@ -57,7 +61,7 @@ for name, env_cls in benchmark.train_classes.items():
     env = env_cls()
     tasks = [task for task in benchmark.train_tasks if task.env_name == name]
     if args.tasks_per_env is not None:
-        tasks = tasks[:args.tasks_per_env]
+        tasks = tasks[: args.tasks_per_env]
     for i, task in enumerate(tasks):
         env.set_task(task)
         # Construct the task
@@ -69,7 +73,7 @@ for name, env_cls in benchmark.test_classes.items():
     env = env_cls()
     tasks = [task for task in benchmark.test_tasks if task.env_name == name]
     if args.tasks_per_env is not None:
-        tasks = tasks[:args.tasks_per_env]
+        tasks = tasks[: args.tasks_per_env]
     for i, task in enumerate(tasks):
         env.set_task(task)
         # Construct the task

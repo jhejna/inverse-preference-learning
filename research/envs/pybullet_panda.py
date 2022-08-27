@@ -1,13 +1,24 @@
 import os
-import numpy as np
+
 import gym
+import numpy as np
 import pybullet as p
 import pybullet_data
 from pybullet_utils import bullet_client
 
-class PandaEnv(gym.Env):
 
-    def __init__(self, basePosition=[0,0,0], max_delta=0.05, fix_gripper=False, initialization_noise=0.0, use_quat=False, n_substeps=20, timestep=0.002, ee_link=7):
+class PandaEnv(gym.Env):
+    def __init__(
+        self,
+        basePosition=[0, 0, 0],
+        max_delta=0.05,
+        fix_gripper=False,
+        initialization_noise=0.0,
+        use_quat=False,
+        n_substeps=20,
+        timestep=0.002,
+        ee_link=7,
+    ):
         # Setup the simulator
         self.urdfRootPath = pybullet_data.getDataPath()
         self.sim = bullet_client.BulletClient(connection_mode=p.DIRECT)
@@ -17,19 +28,17 @@ class PandaEnv(gym.Env):
         self.sim.setGravity(0, 0, -9.81)
         # Setup the camera
         self._camera_width, self._camera_height = None, None
-        self.sim.resetDebugVisualizerCamera(cameraDistance=1.2, cameraYaw=30, cameraPitch=-60,
-                                     cameraTargetPosition=[0.5, -0.2, 0.0])
-        self.view_matrix = self.sim.computeViewMatrixFromYawPitchRoll(cameraTargetPosition=[0.5, 0, 0],
-                                                               distance=1.0,
-                                                               yaw=90,
-                                                               pitch=-50,
-                                                               roll=0,
-                                                               upAxisIndex=2)
+        self.sim.resetDebugVisualizerCamera(
+            cameraDistance=1.2, cameraYaw=30, cameraPitch=-60, cameraTargetPosition=[0.5, -0.2, 0.0]
+        )
+        self.view_matrix = self.sim.computeViewMatrixFromYawPitchRoll(
+            cameraTargetPosition=[0.5, 0, 0], distance=1.0, yaw=90, pitch=-50, roll=0, upAxisIndex=2
+        )
         self._projection_matrix = None
         # setup the panda
         self.sim.loadURDF("plane.urdf", basePosition=[0, 0, 0])
         self.panda = self.sim.loadURDF("franka_panda/panda.urdf", useFixedBase=True, basePosition=basePosition)
-        
+
         # Save parameters
         self.initialization_noise = initialization_noise
         self.max_delta = max_delta
@@ -61,14 +70,19 @@ class PandaEnv(gym.Env):
         ee_state, ee_quat = self._ee_state
         action = np.clip(action, self.action_space.low, self.action_space.high)
         ee_action = action[:3]
-        ee_desired = ee_state + self.max_delta*ee_action
+        ee_desired = ee_state + self.max_delta * ee_action
 
         # Update the robot
-        new_joint_positions = self.sim.calculateInverseKinematics(self.panda, self.ee_link, list(ee_desired), self._desired_quat)
-        self.sim.setJointMotorControlArray(self.panda, range(9), self.sim.POSITION_CONTROL, 
-                                           targetPositions=list(new_joint_positions),
-                                           forces=self.max_forces
-                                           )
+        new_joint_positions = self.sim.calculateInverseKinematics(
+            self.panda, self.ee_link, list(ee_desired), self._desired_quat
+        )
+        self.sim.setJointMotorControlArray(
+            self.panda,
+            range(9),
+            self.sim.POSITION_CONTROL,
+            targetPositions=list(new_joint_positions),
+            forces=self.max_forces,
+        )
 
         # Update the gripper
         if not self.fix_gripper:
@@ -77,10 +91,12 @@ class PandaEnv(gym.Env):
             open_or_close = 1 if gripper_action < 0 else -1
             new_width = self._gripper_width + open_or_close * speed
             new_width = min(new_width, 0.1)
-            gripper_position = [new_width/2, new_width/2]
+            gripper_position = [new_width / 2, new_width / 2]
         else:
             gripper_position = [0.0, 0.0]
-        self.sim.setJointMotorControlArray(self.panda, [9,10], self.sim.POSITION_CONTROL, targetPositions=list(gripper_position))        
+        self.sim.setJointMotorControlArray(
+            self.panda, [9, 10], self.sim.POSITION_CONTROL, targetPositions=list(gripper_position)
+        )
 
         for _ in range(self.n_substeps):
             self.sim.stepSimulation()
@@ -90,7 +106,7 @@ class PandaEnv(gym.Env):
         return self._get_obs(), self._get_reward(), self._get_done(), info
 
     def reset(self):
-        init_pos = [0.0, 0.0, 0.0, -2*np.pi/4, 0.0, np.pi/2, np.pi/4, 0.0, 0.0]
+        init_pos = [0.0, 0.0, 0.0, -2 * np.pi / 4, 0.0, np.pi / 2, np.pi / 4, 0.0, 0.0]
         if self.fix_gripper:
             init_pos += [0.0, 0.0]
         else:
@@ -102,28 +118,28 @@ class PandaEnv(gym.Env):
 
         if self.initialization_noise > 0:
             ee_pos = np.array(ee_pos)
-            delta = self.initialization_noise*np.random.uniform(low=-1, high=1, size=ee_pos.shape)
+            delta = self.initialization_noise * np.random.uniform(low=-1, high=1, size=ee_pos.shape)
             ee_desired = np.clip(ee_pos + delta, self.ee_pos_lower_limit, self.ee_pos_upper_limit)
             # Update the robot
-            new_joint_positions = self.sim.calculateInverseKinematics(self.panda, self.ee_link, list(ee_desired), list(ee_quat))
+            new_joint_positions = self.sim.calculateInverseKinematics(
+                self.panda, self.ee_link, list(ee_desired), list(ee_quat)
+            )
             for i, pos in enumerate(new_joint_positions):
                 self.sim.resetJointState(self.panda, i, pos)
-        
+
         self._reset()
         self.sim.stepSimulation()
         return self._get_obs()
 
-    def render(self, mode='rgb_array', width=120, height=120):
+    def render(self, mode="rgb_array", width=120, height=120):
         if height != self._camera_height or width != self._camera_width or self._projection_matrix is None:
             self._camera_width, self._camera_height = width, height
-            self._projection_matrix = self.sim.computeProjectionMatrixFOV(fov=60,
-                                                        aspect=float(width) / height,
-                                                        nearVal=0.1,
-                                                        farVal=100.0)
-        (width, height, pxl, _, _) = self.sim.getCameraImage(width=width,
-                                                            height=height,
-                                                            viewMatrix=self.view_matrix,
-                                                            projectionMatrix=self._projection_matrix)
+            self._projection_matrix = self.sim.computeProjectionMatrixFOV(
+                fov=60, aspect=float(width) / height, nearVal=0.1, farVal=100.0
+            )
+        (width, height, pxl, _, _) = self.sim.getCameraImage(
+            width=width, height=height, viewMatrix=self.view_matrix, projectionMatrix=self._projection_matrix
+        )
         rgb_array = np.array(pxl, dtype=np.uint8)
         rgb_array = np.reshape(rgb_array, (height, width, 4))
         rgb_array = rgb_array[:, :, :3]
@@ -145,18 +161,18 @@ class PandaEnv(gym.Env):
     @property
     def _gripper_width(self):
         joint_pos = np.array(self.sim.getJointState(self.panda, 9)[0])
-        return 2*joint_pos
+        return 2 * joint_pos
 
     @property
     def _gripper_state(self):
         width = self._gripper_width
-        return np.array([-width/2, width/2])
+        return np.array([-width / 2, width / 2])
 
     @property
     def _joint_position(self):
         joint_states = self.sim.getJointStates(self.panda, range(9))
         return np.array([joint_state[0] for joint_state in joint_states])
-    
+
     def _reset(self):
         pass
 
@@ -172,8 +188,8 @@ class PandaEnv(gym.Env):
     def _get_success(self):
         return None
 
-class Reach(PandaEnv):
 
+class Reach(PandaEnv):
     def __init__(self, *args, goal=[0.5602202, 0.35655773, 0.11], **kwargs):
         self.goal = np.array(goal)
         assert len(goal) == 3
@@ -197,11 +213,11 @@ class Reach(PandaEnv):
             obs_list.append(self._gripper_state)
         obs = np.concatenate(obs_list, axis=0).copy()
         return obs
-    
+
     def _get_reward(self):
         ee_pos, _ = self._ee_state
         dist = np.linalg.norm(ee_pos - self.goal)
-        reward = -0.1*dist
+        reward = -0.1 * dist
         return reward
 
     def _get_success(self):
@@ -212,37 +228,51 @@ class Reach(PandaEnv):
     def _get_done(self):
         return False
 
-class BlockPush(PandaEnv):
 
-    def __init__(self, *args, goal=(0.35, 0.35), randomize_block=True, block_obs=True, dist_reward=0.02, grasp_bonus=0.0, state_noise=0.0, **kwargs):
+class BlockPush(PandaEnv):
+    def __init__(
+        self,
+        *args,
+        goal=(0.35, 0.35),
+        randomize_block=True,
+        block_obs=True,
+        dist_reward=0.02,
+        grasp_bonus=0.0,
+        state_noise=0.0,
+        **kwargs,
+    ):
         self.goal = np.array(goal)
         assert len(goal) == 2
         super().__init__(*args, **kwargs)
         self.randomize_block = randomize_block
         self.block_obs = block_obs
         self.block_size = 0.05
-        self.block_mass = 2.0 # Set block mass to 1.5.
+        self.block_mass = 2.0  # Set block mass to 1.5.
         self.block_base_position = np.array((0.5, 0, 0.05 / 2))
         self.dist_reward = dist_reward
         self.grasp_bonus = grasp_bonus
         self.state_noise = state_noise
 
-        baseVisualShapeIndex = self.sim.createVisualShape(self.sim.GEOM_BOX, 
-                                                          halfExtents=np.ones(3)*self.block_size/2,
-                                                          specularColor=np.zeros(3),
-                                                          rgbaColor=np.array([0.1, 0.9, 0.1, 1.0]))
-        baseCollisionShapeIndex = self.sim.createCollisionShape(self.sim.GEOM_BOX, halfExtents=np.ones(3)*self.block_size/2)
+        baseVisualShapeIndex = self.sim.createVisualShape(
+            self.sim.GEOM_BOX,
+            halfExtents=np.ones(3) * self.block_size / 2,
+            specularColor=np.zeros(3),
+            rgbaColor=np.array([0.1, 0.9, 0.1, 1.0]),
+        )
+        baseCollisionShapeIndex = self.sim.createCollisionShape(
+            self.sim.GEOM_BOX, halfExtents=np.ones(3) * self.block_size / 2
+        )
         self.block = self.sim.createMultiBody(
             baseVisualShapeIndex=baseVisualShapeIndex,
             baseCollisionShapeIndex=baseCollisionShapeIndex,
             baseMass=self.block_mass,
-            basePosition=self.block_base_position + np.array([0.0, 0.0, 0.01]), # add a Z offest for initial placement
+            basePosition=self.block_base_position + np.array([0.0, 0.0, 0.01]),  # add a Z offest for initial placement
         )
         self.sim.changeDynamics(bodyUniqueId=self.block, linkIndex=-1, lateralFriction=0.5)
-    
+
     @property
     def observation_space(self):
-        n_dims = 3 # EE Pos and X, Y position of block
+        n_dims = 3  # EE Pos and X, Y position of block
         if self.use_quat:
             n_dims += 4
         if not self.fix_gripper:
@@ -263,23 +293,23 @@ class BlockPush(PandaEnv):
         obs = np.concatenate(obs_list, axis=0).copy()
         obs += self.state_noise * np.clip(np.random.randn(*obs.shape), -1.5, 1.5)
         return obs
-    
+
     def _get_reward(self):
         # Get the vector between the two end effector points
         grasp_point = self._grasp_state[0]
         dist_to_block = np.linalg.norm(grasp_point - self._block_pos)
-        margin = self.block_size/2 + 0.0075
+        margin = self.block_size / 2 + 0.0075
         dist_to_block = max(dist_to_block, margin) - margin
-        
-        goal_pos = np.array([self.goal[0], self.goal[1], self.block_size/2])
+
+        goal_pos = np.array([self.goal[0], self.goal[1], self.block_size / 2])
         dist_to_target = np.linalg.norm(goal_pos - self._block_pos)
 
-        reward = -self.dist_reward*dist_to_block + -0.1*dist_to_target
+        reward = -self.dist_reward * dist_to_block + -0.1 * dist_to_target
 
         if self.grasp_bonus > 0:
             if self.is_grasping():
                 reward += self.grasp_bonus
-        
+
         return reward
 
     def _get_success(self):
@@ -347,10 +377,10 @@ class BlockPush(PandaEnv):
 
     @property
     def _block_pos(self):
-        return  np.array(self.sim.getBasePositionAndOrientation(self.block)[0])
+        return np.array(self.sim.getBasePositionAndOrientation(self.block)[0])
+
 
 if __name__ == "__main__":
-
     env = BlockPush(use_quat=False, fix_gripper=False, initialization_noise=0.0, randomize_block=True, grasp_bonus=0.0)
     obs = env.reset()
     done = False
@@ -361,5 +391,6 @@ if __name__ == "__main__":
         obs = next_obs
         max_length -= 1
         import time
+
         time.sleep(0.1)
     print("Finished")

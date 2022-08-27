@@ -1,34 +1,42 @@
-import torch
 import copy
-import numpy as np
-from .base import Algorithm
-from research.utils import utils
 import itertools
 import os
+
+import numpy as np
+import torch
+
+from research.utils import utils
+
+from .base import Algorithm
+
 
 def collate(x):
     return x
 
-class PreferenceMAML(Algorithm):
 
-    def __init__(self, env, network_class, dataset_class, 
-                       num_support=10,
-                       num_query=10,
-                       num_inner_steps=1,
-                       inner_lr=0.1,
-                       learn_inner_lr=True,
-                       **kwargs
-                ):
+class PreferenceMAML(Algorithm):
+    def __init__(
+        self,
+        env,
+        network_class,
+        dataset_class,
+        num_support=10,
+        num_query=10,
+        num_inner_steps=1,
+        inner_lr=0.1,
+        learn_inner_lr=True,
+        **kwargs,
+    ):
         # Save variables needed for optim init
         self.inner_lr = inner_lr
         self.learn_inner_lr = learn_inner_lr
         super().__init__(env, network_class, dataset_class, **kwargs)
-        self.reward_criterion = torch.nn.BCEWithLogitsLoss(reduction='none')
+        self.reward_criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
         self.num_support = num_support
         self.num_query = num_query
         self.num_inner_steps = num_inner_steps
         # Re-assign network to support training ActorCriticPolicy with reward networks.
-        if hasattr(self.network, 'reward'):
+        if hasattr(self.network, "reward"):
             self.reward_network = self.network.reward
         else:
             self.reward_network = self.network
@@ -37,24 +45,32 @@ class PreferenceMAML(Algorithm):
 
     def setup_optimizers(self, optim_class, optim_kwargs):
         # Handle case for ActorCriticPolicy.
-        if hasattr(self.network, 'reward'):
+        if hasattr(self.network, "reward"):
             network_params = self.network.reward.params
         else:
             network_params = self.network.params
-        self._inner_lrs = torch.nn.ParameterDict({
-            k: torch.nn.Parameter(torch.tensor(self.inner_lr), requires_grad=self.learn_inner_lr)
-            for k, v in network_params.items()
-        })
-        self.optim['reward'] = optim_class(itertools.chain(network_params.values(), self._inner_lrs.values()), **optim_kwargs)
+        self._inner_lrs = torch.nn.ParameterDict(
+            {
+                k: torch.nn.Parameter(torch.tensor(self.inner_lr), requires_grad=self.learn_inner_lr)
+                for k, v in network_params.items()
+            }
+        )
+        self.optim["reward"] = optim_class(
+            itertools.chain(network_params.values(), self._inner_lrs.values()), **optim_kwargs
+        )
 
     def _compute_loss_and_accuracy(self, batch, parameters):
-        B, S = batch['obs_1'].shape[:2] # Get the batch size and the segment length
+        B, S = batch["obs_1"].shape[:2]  # Get the batch size and the segment length
         assert B > 0 and S > 0, "Got Empty batch"
-        flat_obs_shape = (B*S,) + batch['obs_1'].shape[2:]
-        flat_action_shape = (B*S,) + batch['action_1'].shape[2:]
-        
-        r_hat1 = self.reward_network.forward(batch['obs_1'].view(*flat_obs_shape), batch['action_1'].view(flat_action_shape), parameters)
-        r_hat2 = self.reward_network.forward(batch['obs_2'].view(*flat_obs_shape), batch['action_2'].view(flat_action_shape), parameters)
+        flat_obs_shape = (B * S,) + batch["obs_1"].shape[2:]
+        flat_action_shape = (B * S,) + batch["action_1"].shape[2:]
+
+        r_hat1 = self.reward_network.forward(
+            batch["obs_1"].view(*flat_obs_shape), batch["action_1"].view(flat_action_shape), parameters
+        )
+        r_hat2 = self.reward_network.forward(
+            batch["obs_2"].view(*flat_obs_shape), batch["action_2"].view(flat_action_shape), parameters
+        )
         # Handle the ensemble case
         if len(r_hat1.shape) > 1:
             E, B_times_S = r_hat1.shape
@@ -62,12 +78,12 @@ class PreferenceMAML(Algorithm):
         else:
             E, B_times_S = 0, r_hat1.shape[0]
             out_shape = (B, S)
-        assert B_times_S == B*S, "shapes incorrect"
+        assert B_times_S == B * S, "shapes incorrect"
 
-        r_hat1 = r_hat1.view(*out_shape).sum(dim=-1) # Shape (E, B) or (B,)
-        r_hat2 = r_hat2.view(*out_shape).sum(dim=-1) # Shape (E, B) or (B,)
-        logits = r_hat2 - r_hat1 
-        labels = batch['label'].float()
+        r_hat1 = r_hat1.view(*out_shape).sum(dim=-1)  # Shape (E, B) or (B,)
+        r_hat2 = r_hat2.view(*out_shape).sum(dim=-1)  # Shape (E, B) or (B,)
+        logits = r_hat2 - r_hat1
+        labels = batch["label"].float()
 
         loss = self.reward_criterion(logits, labels).mean(dim=-1)
         if len(loss.shape) == 2:
@@ -81,9 +97,7 @@ class PreferenceMAML(Algorithm):
 
     def _inner_step(self, batch, train=True):
         accuracies = []
-        parameters = {
-            k: torch.clone(v) for k, v in self.reward_network.params.items()
-        }
+        parameters = {k: torch.clone(v) for k, v in self.reward_network.params.items()}
         for i in range(self.num_inner_steps):
             loss, accuracy = self._compute_loss_and_accuracy(batch, parameters)
             accuracies.append(accuracy)
@@ -101,37 +115,37 @@ class PreferenceMAML(Algorithm):
         outer_losses = []
         support_accuracies = []
         query_accuracies = []
-        for (task_id, task) in batch:
+        for task_id, task in batch:
             # Split into support and query datasets
-            batch_size = task['obs_1'].shape[0]
+            batch_size = task["obs_1"].shape[0]
             if batch_size < self.num_support + self.num_query:
                 continue
             batch_support = utils.get_from_batch(task, 0, end=self.num_support)
-            batch_query = utils.get_from_batch(task, self.num_support, end=self.num_support+self.num_query)
+            batch_query = utils.get_from_batch(task, self.num_support, end=self.num_support + self.num_query)
             parameters, support_accuracy = self._inner_step(batch_support, train=train)
             loss, query_accuracy = self._compute_loss_and_accuracy(batch_query, parameters)
             outer_losses.append(loss)
             support_accuracies.append(support_accuracy)
             query_accuracies.append(query_accuracy)
         if len(outer_losses) == 0:
-            return None, None, None # Skip the last batch if it isn't full.
+            return None, None, None  # Skip the last batch if it isn't full.
         outer_loss = torch.mean(torch.stack(outer_losses))
         support_accuracy = np.mean(support_accuracies, axis=0)
         query_accuracy = np.mean(query_accuracies)
         return outer_loss, support_accuracy, query_accuracy
 
     def _train_step(self, batch):
-        self.optim['reward'].zero_grad()
+        self.optim["reward"].zero_grad()
         loss, support_accuracy, query_accuracy = self._outer_step(batch, train=True)
         if loss is None:
             return {}
         loss.backward()
-        self.optim['reward'].step()
+        self.optim["reward"].step()
         metrics = {
-            'outer_loss': loss.item(),
-            'pre_adapt_support_accuracy': support_accuracy[0],
-            'post_adapt_support_accuracy': support_accuracy[-1],
-            'post_adapt_query_accuracy': query_accuracy
+            "outer_loss": loss.item(),
+            "pre_adapt_support_accuracy": support_accuracy[0],
+            "post_adapt_support_accuracy": support_accuracy[-1],
+            "post_adapt_query_accuracy": query_accuracy,
         }
         return metrics
 
@@ -140,10 +154,10 @@ class PreferenceMAML(Algorithm):
         if loss is None:
             return {}
         metrics = {
-            'outer_loss': loss.item(),
-            'pre_adapt_support_accuracy': support_accuracy[0],
-            'post_adapt_support_accuracy': support_accuracy[-1],
-            'post_adapt_query_accuracy': query_accuracy
+            "outer_loss": loss.item(),
+            "pre_adapt_support_accuracy": support_accuracy[0],
+            "post_adapt_support_accuracy": support_accuracy[-1],
+            "post_adapt_query_accuracy": query_accuracy,
         }
         return metrics
 
@@ -151,4 +165,4 @@ class PreferenceMAML(Algorithm):
         return {"lrs": self._inner_lrs.state_dict()}
 
     def _load_extras(self, checkpoint, strict=True):
-        self._inner_lrs.load_state_dict(checkpoint['lrs'], strict=strict)
+        self._inner_lrs.load_state_dict(checkpoint["lrs"], strict=strict)

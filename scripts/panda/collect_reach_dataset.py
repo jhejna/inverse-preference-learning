@@ -1,11 +1,13 @@
+import argparse
+import logging
+import os
+import random
+
+import gym
+import numpy as np
+
 import research
 from research.datasets import ReplayBuffer
-import gym
-import argparse
-import os
-import numpy as np
-import random
-import logging
 
 EE_POS_LOWER_LIMIT = np.array([0.1, -0.4, 0.12])
 EE_POS_UPPER_LIMIT = np.array([1.0, 0.4, 1.0])
@@ -25,7 +27,10 @@ random.seed(args.seed)
 
 # Construct validation first to keep it detemrinistc
 TARGET_POSITIONS_VALID = [np.random.uniform(low=EE_POS_LOWER_LIMIT, high=EE_POS_UPPER_LIMIT) for _ in range(10)]
-TARGET_POSITIONS_TRAIN = [np.random.uniform(low=EE_POS_LOWER_LIMIT, high=EE_POS_UPPER_LIMIT) for _ in range(args.num_tasks)]
+TARGET_POSITIONS_TRAIN = [
+    np.random.uniform(low=EE_POS_LOWER_LIMIT, high=EE_POS_UPPER_LIMIT) for _ in range(args.num_tasks)
+]
+
 
 def create_random_dataset(target_pos, path):
     initialization_noise = args.noise_magnitude
@@ -44,19 +49,20 @@ def create_random_dataset(target_pos, path):
         action = env.action_space.sample()
         obs, reward, done, info = env.step(action)
         # Determine the discount factor.
-        if 'discount' in info:
-            discount = info['discount']
+        if "discount" in info:
+            discount = info["discount"]
         elif hasattr(env, "_max_episode_steps") and episode_length == env._max_episode_steps:
             discount = 1.0
         else:
             discount = 1 - float(done)
-        
+
         num_steps += 1
         dataset.add(obs, action, reward, done, discount)
 
     # save the dataset
     save_path = os.path.join(path, "x{}_y{}_z{}".format(target_pos[0], target_pos[1], target_pos[2]))
     dataset.save(save_path)
+
 
 # # Create the train and validation datasets
 # for target_pos in TARGET_POSITIONS_TRAIN:
