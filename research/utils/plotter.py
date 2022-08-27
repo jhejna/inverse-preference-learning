@@ -1,23 +1,36 @@
 import argparse
 import os
+from typing import Dict, List, Optional
+
 import numpy as np
 import pandas as pd
-from matplotlib import pyplot as plt
 import seaborn as sns
+from matplotlib import pyplot as plt
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 LOG_FILE_NAME = "log.csv"
 
 sns.set_context(context="paper", font_scale=0.68)
-sns.set_style("white", {'font.family': 'serif'})
+sns.set_style("white", {"font.family": "serif"})
 
-def moving_avg(x, y, window_size=1):
+
+def moving_avg(x, y, window_size: int = 1):
     if window_size == 1:
         return x, y
-    moving_avg_y = np.convolve(y, np.ones(window_size) / window_size, 'valid') 
-    return x[-len(moving_avg_y):], moving_avg_y
+    moving_avg_y = np.convolve(y, np.ones(window_size) / window_size, "valid")
+    return x[-len(moving_avg_y) :], moving_avg_y
 
-def plot_run(paths, name, ax=None, x_key="steps", y_keys=["eval/loss"], window_size=1, max_x_value=None, **kwargs):
+
+def plot_run(
+    paths: List[str],
+    name: str,
+    ax=None,
+    x_key: str = "steps",
+    y_keys: List[str] = ["eval/loss"],
+    window_size: int = 1,
+    max_x_value: Optional[int] = None,
+    **kwargs,
+) -> None:
     for path in paths:
         assert LOG_FILE_NAME in os.listdir(path), "Did not find log file, found " + " ".join(os.listdir(path))
     for y_key in y_keys:
@@ -26,13 +39,17 @@ def plot_run(paths, name, ax=None, x_key="steps", y_keys=["eval/loss"], window_s
             df = pd.read_csv(os.path.join(path, LOG_FILE_NAME))
             if y_key not in df:
                 print("[research] WARNING: y_key was not in run, skipping plot", path)
+                continue
             x, y = moving_avg(df[x_key], df[y_key], window_size=window_size)
             assert len(x) == len(y)
             if max_x_value is not None:
-                y = y[x <= max_x_value] # need to set y value first
+                y = y[x <= max_x_value]  # need to set y value first
                 x = x[x <= max_x_value]
             xs.append(x)
             ys.append(y)
+        if len(ys) == 0:
+            print("[research], WARNING: had no runs for y_key", y_key, "skipping.")
+            continue
         xs = np.concatenate(xs, axis=0)
         ys = np.concatenate(ys, axis=0)
         plot_df = pd.DataFrame({x_key: xs, y_key: ys})
@@ -40,7 +57,17 @@ def plot_run(paths, name, ax=None, x_key="steps", y_keys=["eval/loss"], window_s
         ci = "sd" if len(paths) > 0 else None
         sns.lineplot(ax=ax, x=x_key, y=y_key, data=plot_df, sort=True, ci=ci, label=label, **kwargs)
 
-def create_plot(paths, labels, ax=None, title=None, color_map=None, xlabel=None, ylabel=None, **kwargs):
+
+def create_plot(
+    paths: List[str],
+    labels: List[str],
+    ax=None,
+    title: Optional[str] = None,
+    color_map: Optional[Dict] = None,
+    xlabel: Optional[str] = None,
+    ylabel: Optional[str] = None,
+    **kwargs,
+):
     assert len(labels) == len(labels), "The length of paths must the same as the length of labels"
     ax = plt.gca() if ax is None else ax
 
@@ -60,8 +87,8 @@ def create_plot(paths, labels, ax=None, title=None, color_map=None, xlabel=None,
         plot_run(run_paths, label, ax=ax, color=color_map[label], **kwargs)
 
     ax.set_title(title, pad=1)
-    ax.tick_params(axis='y', pad=-2, labelsize=5)
-    ax.tick_params(axis='x', pad=-2, labelsize=5)
+    ax.tick_params(axis="y", pad=-2, labelsize=5)
+    ax.tick_params(axis="x", pad=-2, labelsize=5)
     if xlabel is not None:
         ax.set_xlabel(xlabel)
     if ylabel is not None:
@@ -69,8 +96,9 @@ def create_plot(paths, labels, ax=None, title=None, color_map=None, xlabel=None,
 
     sns.despine(ax=ax)
 
-def plot_from_config(config_path):
-    '''
+
+def plot_from_config(config_path: str) -> None:
+    """
     --- Configuration design for plot files ---
     title: null
     kwargs:
@@ -79,12 +107,12 @@ def plot_from_config(config_path):
     color_map:
         method_1: idx
         method_2: idx
-    
+
     grid_shape: (rows, cols)
     fig_size: (6, 3) etc. or null
     legend_pos: first
     use_subplot_titles: true
-    
+
     plots:
         title_1:
             methods:
@@ -99,43 +127,44 @@ def plot_from_config(config_path):
                 method_2: path
             config:
             image: image path
-    '''
+    """
     import yaml
-    with open(config_path, 'r') as f:
+
+    with open(config_path, "r") as f:
         config = yaml.load(f, Loader=yaml.Loader)
 
-    grid_shape = config['grid_shape']
+    grid_shape = config["grid_shape"]
     rect = [0, 0, 1, 1]
 
     # Note that grid shape is given as (rows, cols)
-    assert len(config['plots']) == grid_shape[0] * grid_shape[1]
-    figsize = (2*grid_shape[1], grid_shape[0]) if config.get('fig_size') is None else config.get('fig_size')
+    assert len(config["plots"]) == grid_shape[0] * grid_shape[1]
+    figsize = (2 * grid_shape[1], grid_shape[0]) if config.get("fig_size") is None else config.get("fig_size")
 
-    legend_pos = config.get('legend_pos')
+    legend_pos = config.get("legend_pos")
     assert legend_pos in {"first", "last", "bottom", None}
     if legend_pos == "first":
         legend_index = 0
     elif legend_pos == "last":
-        legend_index = len(config['plots']) - 1
+        legend_index = len(config["plots"]) - 1
     else:
         legend_index = None
-    
+
     fig, axes = plt.subplots(*grid_shape, figsize=figsize)
 
     # Determine if we should include xlabels or ylabels
-    use_xlabels = any(['xlabel' in plot.get('kwargs', {}) for plot in config['plots'].values()])
-    use_ylabels = any(['ylabel' in plot.get('kwargs', {}) for plot in config['plots'].values()])
+    use_xlabels = any(["xlabel" in plot.get("kwargs", {}) for plot in config["plots"].values()])
+    use_ylabels = any(["ylabel" in plot.get("kwargs", {}) for plot in config["plots"].values()])
 
-    for i, (plot_title, plot_config) in enumerate(config['plots'].items()):
+    for i, (plot_title, plot_config) in enumerate(config["plots"].items()):
         y_index, x_index = i // grid_shape[1], i % grid_shape[1]
         ax = axes.flat[i]
 
-        paths, labels = list(plot_config['methods'].values()), list(plot_config['methods'].keys())
-        plot_title = plot_title if config.get('use_subplot_titles') else None
-        plot_kwargs = plot_config.get('kwargs', {}).copy()
-        plot_kwargs.update(config['kwargs'])
+        paths, labels = list(plot_config["methods"].values()), list(plot_config["methods"].keys())
+        plot_title = plot_title if config.get("use_subplot_titles") else None
+        plot_kwargs = config.get("kwargs", dict()).copy()
+        plot_kwargs.update(plot_config.get("kwargs", {}))
 
-        create_plot(paths, labels, ax, plot_title, color_map=config.get('color_map'), **plot_kwargs)
+        create_plot(paths, labels, ax, plot_title, color_map=config.get("color_map"), **plot_kwargs)
 
         if x_index != 0 and not use_ylabels:
             ax.set_ylabel(None)
@@ -145,23 +174,23 @@ def plot_from_config(config_path):
             ax.get_legend().remove()
 
         # Check to see if we can place an image in the corner of the plot.
-        if plot_config.get('image') is not None:
+        if plot_config.get("image") is not None:
             import matplotlib.image as mpimg
-            # use inset axes to create an inset image
-            image_x = 0.75 * figsize[0] / grid_shape[1]
-            axins = inset_axes(ax, width="35%", height="35%", loc=4, borderpad=0.2)
-            image = mpimg.imread(plot_config['image'])
-            axins.imshow(image)
-            axins.axis('off')
 
-    if config.get('title'):
-        fig.suptitle(config.get('title'), y=1.0)
+            # use inset axes to create an inset image
+            axins = inset_axes(ax, width="35%", height="35%", loc=4, borderpad=0.2)
+            image = mpimg.imread(plot_config["image"])
+            axins.imshow(image)
+            axins.axis("off")
+
+    if config.get("title"):
+        fig.suptitle(config.get("title"), y=1.0)
         rect[3] -= 0.01
 
     # If the legend is set to the bottom do it here
     if legend_pos == "bottom":
         handles, labels = ax.get_legend_handles_labels()
-        fig.legend(handles, labels, loc='lower left', ncol=len(handles), bbox_to_anchor=(0.25, -0.01))
+        fig.legend(handles, labels, loc="lower left", ncol=len(handles), bbox_to_anchor=(0.25, -0.01))
         rect[1] += 0.05
-        
+
     plt.tight_layout(pad=0, rect=rect)
