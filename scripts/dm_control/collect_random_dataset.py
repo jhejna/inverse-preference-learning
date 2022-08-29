@@ -1,10 +1,11 @@
 import argparse
 import os
+from typing import Tuple
 
 import gym
 import numpy as np
 
-import research
+import research  # to register the environments
 from research.datasets import ReplayBuffer
 
 TARGET_POSITIONS_TRAIN = {
@@ -71,7 +72,7 @@ if args.vision:
 env_id += "-v0"
 
 
-def create_random_dataset(target_pos, path):
+def create_random_dataset(target_pos: Tuple[float, float], path: str) -> None:
     env = gym.make(env_id, task_kwargs=dict(target_pos=target_pos))
     dataset = ReplayBuffer(env.observation_space, env.action_space, capacity=args.num_steps, cleanup=False)
     # Collect data

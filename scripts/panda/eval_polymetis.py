@@ -1,6 +1,5 @@
 import argparse
 import os
-from ipaddress import ip_address
 
 from research.utils.config import Config
 from research.utils.evaluate import eval_policy

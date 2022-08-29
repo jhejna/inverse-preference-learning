@@ -4,6 +4,7 @@ import os
 import pickle
 import random
 import subprocess
+from typing import List, Tuple
 
 import gym
 import metaworld
@@ -11,11 +12,17 @@ import numpy as np
 from metaworld import Task, policies
 from metaworld.envs import ALL_V2_ENVIRONMENTS_GOAL_OBSERVABLE
 
-import research
 from research.datasets import ReplayBuffer
 
 
-def collect_episode(src_env, dest_env, policy, dataset, epsilon=0.0, noise_type="gaussian"):
+def collect_episode(
+    src_env: gym.Env,
+    dest_env: gym.Env,
+    policy,
+    dataset: ReplayBuffer,
+    epsilon: float = 0.0,
+    noise_type: str = "gaussian",
+):
     obs = dest_env.reset()
     src_obs = src_env.reset()
     dataset.add(obs)
@@ -48,7 +55,7 @@ def collect_episode(src_env, dest_env, policy, dataset, epsilon=0.0, noise_type=
         dataset.add(obs, action, reward, done, discount)
 
 
-def collect_random_episode(env, dataset):
+def collect_random_episode(env: gym.Env, dataset: ReplayBuffer):
     obs = env.reset()
     dataset.add(obs)
     episode_length = 0
@@ -69,8 +76,7 @@ def collect_random_episode(env, dataset):
             done = True  # set done to true manually for meta world.
 
 
-def sample_policy(benchmark, train=True, env_name=None):
-    # TODO: support both train and test sampling here.
+def sample_policy(benchmark, train: bool = True, env_name: str = None) -> Tuple:
     env_dict = benchmark.train_classes if train else benchmark.test_classes
     task_list = benchmark.train_tasks if train else benchmark.test_tasks
     if env_name is None:
@@ -90,17 +96,17 @@ def sample_policy(benchmark, train=True, env_name=None):
 
 def collect_dataset(
     benchmark,
-    names,
-    path,
-    train=True,
-    tasks_per_env=10,
-    expert_ep=5,
-    within_env_ep=5,
-    cross_env_ep=10,
-    random_ep=2,
-    epsilon=0.1,
-    noise_type="gaussian",
-):
+    names: List[str],
+    path: str,
+    train: bool = True,
+    tasks_per_env: int = 10,
+    expert_ep: int = 5,
+    within_env_ep: int = 5,
+    cross_env_ep: int = 10,
+    random_ep: int = 2,
+    epsilon: float = 0.1,
+    noise_type: str = "gaussian",
+) -> None:
     total_ep_per_env = expert_ep + cross_env_ep + within_env_ep + random_ep
     env_dict = benchmark.train_classes if train else benchmark.test_classes
     task_list = benchmark.train_tasks if train else benchmark.test_tasks

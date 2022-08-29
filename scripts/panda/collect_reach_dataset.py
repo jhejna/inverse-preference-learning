@@ -32,7 +32,7 @@ TARGET_POSITIONS_TRAIN = [
 ]
 
 
-def create_random_dataset(target_pos, path):
+def create_random_dataset(target_pos: np.ndarray, path: str) -> None:
     initialization_noise = args.noise_magnitude
     env = gym.make("PyBulletPandaReach-v0", goal=target_pos, initialization_noise=initialization_noise)
     env._max_episode_steps = args.ep_length
@@ -64,11 +64,11 @@ def create_random_dataset(target_pos, path):
     dataset.save(save_path)
 
 
-# # Create the train and validation datasets
-# for target_pos in TARGET_POSITIONS_TRAIN:
-#     create_random_dataset(target_pos, args.path)
-#     print("Finished", target_pos)
-# print("Finished train.")
+# Create the train and validation datasets
+for target_pos in TARGET_POSITIONS_TRAIN:
+    create_random_dataset(target_pos, args.path)
+    print("Finished", target_pos)
+print("Finished train.")
 for target_pos in TARGET_POSITIONS_VALID:
     create_random_dataset(target_pos, args.path + "_valid")
 print("Finished validation.")

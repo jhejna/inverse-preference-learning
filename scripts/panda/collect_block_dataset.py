@@ -2,17 +2,19 @@ import argparse
 import logging
 import os
 import random
+from typing import List
 
 import gym
 import numpy as np
 
 import research
+from research.algs.base import Algorithm
 from research.datasets import ReplayBuffer
 from research.utils.config import Config
 from research.utils.trainer import load, load_from_path
 
 
-def collect_random_episode(env, dataset):
+def collect_random_episode(env: gym.Env, dataset: ReplayBuffer) -> None:
     obs = env.reset()
     dataset.add(obs)
     episode_length = 0
@@ -30,7 +32,7 @@ def collect_random_episode(env, dataset):
         dataset.add(obs, action, reward, done, discount)
 
 
-def collect_policy_episode(env, model, dataset, noise=0.1):
+def collect_policy_episode(env: gym.Env, model: Algorithm, dataset: ReplayBuffer, noise: float = 0.1):
     obs = env.reset()
     dataset.add(obs)
     episode_length = 0
@@ -52,8 +54,15 @@ def collect_policy_episode(env, model, dataset, noise=0.1):
 
 
 def collect_dataset(
-    task_path, policy_paths, save_path, random_ep=1, expert_ep=1, cross_ep=1, init_noise=0.0, policy_noise=0.0
-):
+    task_path: str,
+    policy_paths: List[str],
+    save_path: str,
+    random_ep: int = 1,
+    expert_ep: int = 1,
+    cross_ep: int = 1,
+    init_noise: float = 0.0,
+    policy_noise: float = 0.0,
+) -> None:
     config = Config.load(task_path)
     config["env_kwargs"]["initialization_noise"] = init_noise
     expert_model = load(config, os.path.join(task_path, "best_model.pt"), device="auto", strict=False)
