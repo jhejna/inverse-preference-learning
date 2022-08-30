@@ -33,7 +33,7 @@ def get_parser() -> argparse.ArgumentParser:
         help="Set kv pairs used as args for the entry point script.",
     )
     parser.add_argument("--seeds-per-script", type=int, default=1)
-    parser.add_argument("--scripts-per-job", type=int, default=None, help="configs")
+    parser.add_argument("--scripts-per-job", type=int, default=1, help="configs")
     return parser
 
 
