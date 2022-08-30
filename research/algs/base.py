@@ -460,12 +460,9 @@ class Algorithm(ABC):
         override the _predict funciton in your algorithm.
         """
         with torch.no_grad():
-            if hasattr(self.network, "predict"):
-                pred = self.network.predict(batch, **kwargs)
-            else:
-                if len(kwargs) > 0:
-                    raise ValueError("Default predict method does not accept key word args, but they were provided.")
-                pred = self.network(batch)
+            if len(kwargs) > 0:
+                raise ValueError("Default predict method does not accept key word args, but they were provided.")
+            pred = self.network(batch)
         return pred
 
     def predict(self, batch: Any, is_batched: bool = False, **kwargs) -> Any:

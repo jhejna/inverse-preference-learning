@@ -16,8 +16,13 @@ class NetworkContainer(torch.nn.Module):
         assert all([container + "_class" in kwargs for container in self.CONTAINERS])
         # save the classes and containers
         self._classes = {container: kwargs[container + "_class"] for container in self.CONTAINERS}
-        self._kwargs = {container: kwargs.get(container + "_kwargs", dict()) for container in self.CONTAINERS}
-        self._spaces = {}
+        base_kwargs = {k: v for k, v in kwargs.items() if not k.endswith("_class") and not k.endswith("_kwargs")}
+        self._kwargs = dict()
+        for container in self.CONTAINERS:
+            container_kwargs = base_kwargs.copy()
+            container_kwargs.update(kwargs.get(container + "kwargs", dict()))
+            self._kwargs[container] = container_kwargs
+        self._spaces = dict()
 
         self.action_space = action_space
         self.observation_space = observation_space
