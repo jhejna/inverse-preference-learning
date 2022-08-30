@@ -120,7 +120,7 @@ class Algorithm(ABC):
     def setup_network(self, network_class: Type[torch.nn.Module], network_kwargs: Dict) -> None:
         self.network = network_class(self.observation_space, self.action_space, **network_kwargs).to(self.device)
 
-    def setup_optimizers(self, optim_class: Type[torch.optim.Optimizer], optim_kwargs):
+    def setup_optimizers(self, optim_class: Type[torch.optim.Optimizer], optim_kwargs: Dict) -> None:
         # Default optimizer initialization
         self.optim["network"] = optim_class(self.network.parameters(), **optim_kwargs)
 
