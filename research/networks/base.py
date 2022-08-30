@@ -12,16 +12,20 @@ class NetworkContainer(torch.nn.Module):
 
     def __init__(self, observation_space: gym.Space, action_space: gym.Space, **kwargs) -> None:
         super().__init__()
-        # Check to make sure that we have the required classes
-        assert all([container + "_class" in kwargs for container in self.CONTAINERS])
         # save the classes and containers
-        self._classes = {container: kwargs[container + "_class"] for container in self.CONTAINERS}
         base_kwargs = {k: v for k, v in kwargs.items() if not k.endswith("_class") and not k.endswith("_kwargs")}
         self._kwargs = dict()
+        self._classes = dict()
         for container in self.CONTAINERS:
-            container_kwargs = base_kwargs.copy()
-            container_kwargs.update(kwargs.get(container + "kwargs", dict()))
+            container_class = kwargs.get(container + "_class", torch.nn.Identity)
+            self._classes[container] = container_class
+            if container_class is torch.nn.Identity:
+                container_kwargs = dict()
+            else:
+                container_kwargs = base_kwargs.copy()
+                container_kwargs.update(kwargs.get(container + "_kwargs", dict()))
             self._kwargs[container] = container_kwargs
+
         self._spaces = dict()
 
         self.action_space = action_space
