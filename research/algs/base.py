@@ -295,7 +295,7 @@ class Algorithm(ABC):
         train_metric_lists = defaultdict(list)
         best_validation_metric = -1 * float("inf") if loss_metric in MAX_VALID_METRICS else float("inf")
         last_train_log = 0
-        last_validation_log = 0
+        last_validation_log = -eval_freq  # Ensure that we log on the first step
 
         # Setup training
         self._setup_train()
