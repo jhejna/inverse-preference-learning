@@ -83,6 +83,7 @@ def create_plot(
         if isinstance(path, float):
             # if its just a float, add it as a horizontile line.
             ax.axhline(y=path, color=color_map[label], label=label)
+            continue
         elif LOG_FILE_NAME not in os.listdir(path):
             # If we have multiple seeds in the same directory, add them to a list.
             run_paths = [os.path.join(path, run) for run in os.listdir(path)]
