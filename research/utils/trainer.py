@@ -26,7 +26,6 @@ def get_env(env: gym.Env, env_kwargs: Dict, wrapper: Optional[gym.Env], wrapper_
 
 def get_model(config, device: Union[str, torch.device] = "auto") -> Algorithm:
     assert isinstance(config, Config)
-    config = config.parse()  # Parse the config
     alg_class = vars(research.algs)[config["alg"]]
     dataset_class = None if config["dataset"] is None else vars(research.datasets)[config["dataset"]]
     network_class = None if config["network"] is None else vars(research.networks)[config["network"]]
@@ -108,6 +107,7 @@ def train(config: Config, path: str, device: Union[str, torch.device] = "auto") 
     else:
         use_wandb = False
 
+    config = config.parse()  # Parse the config before getting the model
     model = get_model(config, device=device)
     assert issubclass(type(model), Algorithm)
     print("[research] Using device", model.device)
@@ -150,6 +150,7 @@ def train(config: Config, path: str, device: Union[str, torch.device] = "auto") 
 
 
 def load(config: Config, model_path: str, device: Union[str, torch.device] = "auto", strict: bool = True) -> Algorithm:
+    config = config.parse()  # Parse the config before getting the model
     model = get_model(config, device=device)
     model.load(model_path, strict=strict)
     return model
