@@ -116,8 +116,20 @@ def train(config: Config, path: str, device: Union[str, torch.device] = "auto") 
         # Seed the model if provided.
         model.seed(config["seed"])
 
-    # Fetch the scheduler
-    schedule = None if config["schedule"] is None else vars(schedules)[config["schedule"]]
+    # Fetch the scheduler. If we don't have an optim dict, change it to one.
+    if not isinstance(config["schedule"], dict):
+        schedule = dict(network=config["schedule"])
+        schedule_kwargs = dict(network=config["schedule_kwargs"])
+    else:
+        schedule = config["schedule"]
+        schedule_kwargs = config["schedule_kwargs"]
+
+    # Make sure we fetch the schedule if its provided as a string
+    for k in schedule.keys():
+        if isinstance(schedule[k], str):
+            schedule[k] = torch.optim.lr_scheduler.LambdaLR
+            # Create the lambda function, and pass it in as a keyword arg
+            schedule_kwargs[k]["lr_lambda"] = vars(schedules)[config["schedule"]](**schedule_kwargs[k])
 
     print(
         "[research] Training a model with",
@@ -128,7 +140,7 @@ def train(config: Config, path: str, device: Union[str, torch.device] = "auto") 
     model.train(
         path,
         schedule=schedule,
-        schedule_kwargs=config["schedule_kwargs"],
+        schedule_kwargs=schedule_kwargs,
         use_wandb=use_wandb,
         **config["train_kwargs"],
     )

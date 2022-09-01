@@ -278,11 +278,10 @@ class Algorithm(ABC):
 
         # Create schedulers for the optimizers
         schedulers = {}
-        if schedule is not None:
-            for name, opt in self.optim.items():
-                schedulers[name] = torch.optim.lr_scheduler.LambdaLR(
-                    opt, lr_lambda=schedule(total_steps, **schedule_kwargs)
-                )
+        for k in schedule.keys():
+            if schedule[k] is not None:
+                assert k in self.optim, "Did not find schedule key in optimizers dict."
+                schedulers[k] = schedule[k](self.optim[k], **schedule_kwargs.get(k, dict()))
 
         # Grab the correct evaluation function
         eval_fn = None if eval_fn is None else vars(evaluate)[eval_fn]
