@@ -47,12 +47,18 @@ def get_model(config, device: Union[str, torch.device] = "auto") -> Algorithm:
         else get_env(config["env"], config["env_kwargs"], config["wrapper"], config["wrapper_kwargs"])
     )
 
+    # TODO: perhaps its better to construct eval env during the call to train
+    # The fix to this would be to create an empty env from the eval env spec if None is provided
+    # This could create some hassle though, as we create extra objects and then delete them
+    # This could be particularly bad if the env creation takes a lot of resources.
     # Construct the eval env. Note that wrappers are assumed to be shared.
-    eval_env = (
-        None
-        if config["eval_env"] is None
-        else get_env(config["eval_env"], config["eval_env_kwargs"], config["wrapper"], config["wrapper_kwargs"])
-    )
+    if config["train_kwargs"].get("eval_fn", None) is None:
+        # If we don't have an eval function, we don't need an eval env.
+        eval_env = None
+    elif config["eval_env"] is None:
+        eval_env = get_env(config["env"], config["env_kwargs"], config["wrapper"], config["wrapper_kwargs"])
+    else:
+        eval_env = get_env(config["eval_env"], config["eval_env_kwargs"], config["wrapper"], config["wrapper_kwargs"])
 
     algo = alg_class(
         env,
