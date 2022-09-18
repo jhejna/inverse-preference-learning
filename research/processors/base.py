@@ -20,8 +20,8 @@ class Processor(torch.nn.Module):
     def __init__(self, observation_space: gym.Space, action_space: gym.Space):
         super().__init__()
         self.training = True
-        self.observation_space = observation_space
-        self.action_space = action_space
+        self._observation_space = observation_space
+        self._action_space = action_space
 
     def unprocess(self, batch: Any) -> Any:
         raise NotImplementedError
@@ -29,6 +29,22 @@ class Processor(torch.nn.Module):
     @property
     def supports_gpu(self):
         return True
+
+    @property
+    def observation_space(self):
+        """
+        Outputs the observation space for the network
+        Can be overrided if processor changes this space.
+        """
+        return self._observation_space
+
+    @property
+    def action_space(self):
+        """
+        Outputs the action space for the network
+        Can be overrided if processor changes this space.
+        """
+        return self._action_space
 
 
 class IdentityProcessor(Processor):
