@@ -306,7 +306,7 @@ class Algorithm(ABC):
         start_time = current_time = time.time()
         profiling_metric_lists = defaultdict(list)
 
-        while current_step < total_steps:
+        while current_step <= total_steps:
             for batch in dataloader:
                 # Profiling
                 if profile_freq > 0 and self._steps % profile_freq == 0:
@@ -330,9 +330,6 @@ class Algorithm(ABC):
                 if profile_freq > 0 and self._steps % profile_freq == 0:
                     stop_time = time.time()
                     profiling_metric_lists["train_step"].append(stop_time - current_time)
-
-                # Increment the number of training steps.
-                self._steps += 1
 
                 # Update the schedulers
                 for scheduler in schedulers.values():
@@ -410,12 +407,12 @@ class Algorithm(ABC):
                     self.save(path, "final_model")  # Also save the final model every eval period.
                     self.train_mode()
 
+                # Increment the number of steps
+                self._steps += 1
+
                 # Profiling
                 if profile_freq > 0 and self._steps % profile_freq == 0:
                     current_time = time.time()
-
-                if current_step >= total_steps:
-                    break
 
             self._epochs += 1
         logger.close()
