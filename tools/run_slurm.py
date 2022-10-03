@@ -10,6 +10,7 @@ import utils
 SLURM_LOG_DEFAULT = os.path.join(utils.STORAGE_ROOT, "slurm_logs")
 
 SLURM_ARGS = {
+    "account": {"type": str, "required": True},
     "partition": {"type": str, "required": True},
     "time": {"type": str, "default": "48:00:00"},
     "nodes": {"type": int, "default": 1},
