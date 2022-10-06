@@ -71,12 +71,24 @@ class ComposeProcessor(Processor):
         processors: List[Tuple[str, Dict]] = [("IdentityProcessor", {})],
     ):
         super().__init__(observation_space, action_space)
-        processors = []
+        created_processors = []
+        current_observation_space, current_action_space = observation_space, action_space
         for processor_class, processor_kwargs in processors:
             processor_class = vars(research.processors)[processor_class]
-            processor = processor_class(self.observation_space, self.action_space, **processor_kwargs)
-            processors.append(processor)
-        self.processors = torch.nn.ModuleList(processors)
+            processor = processor_class(current_observation_space, current_action_space, **processor_kwargs)
+            created_processors.append(processor)
+            current_observation_space, current_action_space = processor.observation_space, processor.action_space
+        self.processors = torch.nn.ModuleList(created_processors)
+
+    @property
+    def observation_space(self):
+        # Return the space of the last processor
+        return self.processors[-1].observation_space
+
+    @property
+    def action_space(self):
+        # Return the space of the last processor
+        return self.processors[-1].action_space
 
     def forward(self, batch: Any) -> Any:
         for processor in self.processors:

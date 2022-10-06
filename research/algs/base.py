@@ -335,6 +335,9 @@ class Algorithm(ABC):
                 for scheduler in schedulers.values():
                     scheduler.step()
 
+                # Increment the number of training steps
+                self._steps += 1
+
                 # Compute the current step. This is so we can use other metrics
                 if x_axis in train_metrics:
                     current_step = train_metrics[x_axis]
@@ -406,9 +409,6 @@ class Algorithm(ABC):
                     last_validation_log = current_step
                     self.save(path, "final_model")  # Also save the final model every eval period.
                     self.train_mode()
-
-                # Increment the number of steps
-                self._steps += 1
 
                 # Profiling
                 if profile_freq > 0 and self._steps % profile_freq == 0:
