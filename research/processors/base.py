@@ -90,7 +90,16 @@ class ComposeProcessor(Processor):
         # Return the space of the last processor
         return self.processors[-1].action_space
 
+    @property
+    def supports_gpu(self):
+        return all([processor.supports_gpu for processor in self.processors])
+
     def forward(self, batch: Any) -> Any:
         for processor in self.processors:
+            batch = processor(batch)
+        return batch
+
+    def unprocess(self, batch: Any) -> Any:
+        for processor in reversed(self.processors):
             batch = processor(batch)
         return batch
