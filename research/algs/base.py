@@ -410,6 +410,8 @@ class Algorithm(ABC):
                 # Increment the number of training steps.
                 # Technically we have done one more, but this keeps logs at uniform positions.
                 self._steps += 1
+                if current_step >= total_steps:
+                    break
 
                 # Profiling
                 if profile_freq > 0 and self._steps % profile_freq == 0:
