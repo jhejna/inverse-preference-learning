@@ -31,5 +31,4 @@ skip = ["__init__.py"]
 filter_files = true
 py_version = "all"
 
-
 [dependencies]

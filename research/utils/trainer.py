@@ -26,7 +26,6 @@ def get_env(env: gym.Env, env_kwargs: Dict, wrapper: Optional[gym.Env], wrapper_
 
 def get_model(config, device: Union[str, torch.device] = "auto") -> Algorithm:
     assert isinstance(config, Config)
-    config = config.parse()  # Parse the config
     alg_class = vars(research.algs)[config["alg"]]
     dataset_class = None if config["dataset"] is None else vars(research.datasets)[config["dataset"]]
     network_class = None if config["network"] is None else vars(research.networks)[config["network"]]
@@ -48,12 +47,18 @@ def get_model(config, device: Union[str, torch.device] = "auto") -> Algorithm:
         else get_env(config["env"], config["env_kwargs"], config["wrapper"], config["wrapper_kwargs"])
     )
 
+    # TODO: perhaps its better to construct eval env during the call to train
+    # The fix to this would be to create an empty env from the eval env spec if None is provided
+    # This could create some hassle though, as we create extra objects and then delete them
+    # This could be particularly bad if the env creation takes a lot of resources.
     # Construct the eval env. Note that wrappers are assumed to be shared.
-    eval_env = (
-        None
-        if config["eval_env"] is None
-        else get_env(config["eval_env"], config["eval_env_kwargs"], config["wrapper"], config["wrapper_kwargs"])
-    )
+    if config["train_kwargs"].get("eval_fn", None) is None:
+        # If we don't have an eval function, we don't need an eval env.
+        eval_env = None
+    elif config["eval_env"] is None:
+        eval_env = get_env(config["env"], config["env_kwargs"], config["wrapper"], config["wrapper_kwargs"])
+    else:
+        eval_env = get_env(config["eval_env"], config["eval_env_kwargs"], config["wrapper"], config["wrapper_kwargs"])
 
     algo = alg_class(
         env,
@@ -108,6 +113,7 @@ def train(config: Config, path: str, device: Union[str, torch.device] = "auto") 
     else:
         use_wandb = False
 
+    config = config.parse()  # Parse the config before getting the model
     model = get_model(config, device=device)
     assert issubclass(type(model), Algorithm)
     print("[research] Using device", model.device)
@@ -116,8 +122,20 @@ def train(config: Config, path: str, device: Union[str, torch.device] = "auto") 
         # Seed the model if provided.
         model.seed(config["seed"])
 
-    # Fetch the scheduler
-    schedule = None if config["schedule"] is None else vars(schedules)[config["schedule"]]
+    # Fetch the scheduler. If we don't have an optim dict, change it to one.
+    if not isinstance(config["schedule"], dict):
+        schedule = dict(network=config["schedule"])
+        schedule_kwargs = dict(network=config["schedule_kwargs"])
+    else:
+        schedule = config["schedule"]
+        schedule_kwargs = config["schedule_kwargs"]
+
+    # Make sure we fetch the schedule if its provided as a string
+    for k in schedule.keys():
+        if isinstance(schedule[k], str):
+            schedule[k] = torch.optim.lr_scheduler.LambdaLR
+            # Create the lambda function, and pass it in as a keyword arg
+            schedule_kwargs[k]["lr_lambda"] = vars(schedules)[config["schedule"]](**schedule_kwargs[k])
 
     print(
         "[research] Training a model with",
@@ -128,7 +146,7 @@ def train(config: Config, path: str, device: Union[str, torch.device] = "auto") 
     model.train(
         path,
         schedule=schedule,
-        schedule_kwargs=config["schedule_kwargs"],
+        schedule_kwargs=schedule_kwargs,
         use_wandb=use_wandb,
         **config["train_kwargs"],
     )
@@ -138,6 +156,7 @@ def train(config: Config, path: str, device: Union[str, torch.device] = "auto") 
 
 
 def load(config: Config, model_path: str, device: Union[str, torch.device] = "auto", strict: bool = True) -> Algorithm:
+    config = config.parse()  # Parse the config before getting the model
     model = get_model(config, device=device)
     model.load(model_path, strict=strict)
     return model

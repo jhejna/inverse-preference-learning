@@ -49,7 +49,9 @@ train_kwargs: # Arguments given to Algorithm.train
   total_steps: 800000 # The total number of steps to train
   log_freq: 500 # How often to log values
   eval_freq: 10000 # How often to run evals
-  eval_ep: 10 # Number of enviornment episodes to run for evaluation, or -1 if none should be run.
+  eval_fn: eval_policy
+  eval_kwargs:
+    num_ep: 15 # Number of enviornment episodes to run for evaluation
   loss_metric: reward # The validation metric that determines when to save the "best_checkpoint"
   workers: 0 # Number of dataloader workers.
   profile_freq: 250

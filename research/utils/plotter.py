@@ -1,6 +1,5 @@
-import argparse
 import os
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -59,7 +58,7 @@ def plot_run(
 
 
 def create_plot(
-    paths: List[str],
+    paths: List[Union[str, float]],
     labels: List[str],
     ax=None,
     title: Optional[str] = None,
@@ -73,14 +72,19 @@ def create_plot(
 
     # Setup the color map
     if color_map is None:
-        color_map = {labels[i]: i for i in range(len(labels))}
+        color_map = {labels[i]: i % len(sns.color_palette()) for i in range(len(labels))}
     for k in color_map.keys():
         if isinstance(color_map[k], int):
             color_map[k] = sns.color_palette()[color_map[k]]
 
     # Construct the plots
     for path, label in zip(paths, labels):
-        if LOG_FILE_NAME not in os.listdir(path):
+        if isinstance(path, float):
+            # if its just a float, add it as a horizontile line.
+            ax.axhline(y=path, color=color_map[label], label=label)
+            continue
+        elif LOG_FILE_NAME not in os.listdir(path):
+            # If we have multiple seeds in the same directory, add them to a list.
             run_paths = [os.path.join(path, run) for run in os.listdir(path)]
         else:
             run_paths = [path]

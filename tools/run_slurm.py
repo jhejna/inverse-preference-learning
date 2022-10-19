@@ -22,6 +22,7 @@ SLURM_ARGS = {
     "job-name": {"type": str, "required": True},
     "exclude": {"type": str, "required": False, "default": None},
     "nodelist": {"type": str, "required": False, "default": None},
+    "account": {"type": str, "required": False, "default": None},
 }
 
 SLURM_NAME_OVERRIDES = {"gpus": "gres", "cpus": "cpus-per-task"}

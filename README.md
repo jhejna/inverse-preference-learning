@@ -9,7 +9,6 @@ First cloen the repository. Then complete the following steps:
 4. Modify the `setup_shell.sh` script by updated the appropriate values as needed. The `setup_shell.sh` script should load the environment, move the shell to the repository directory, and additionally setup any external dependencies. You can add any extra code here.
 
 ## Usage
-<<<<<<< HEAD
 You should be able to activate the development enviornment by running `. path/to/setup_shell.sh`. This is the same environment that will be activated when running jobs locally or on SLURM.
 
 To train a model, simply run `python scripts/train.py --config path/to/config --path path/to/save/folder`
@@ -36,7 +35,6 @@ python tools/run_slurm.py --partition <partition> --cpus 8 --gpus 1080ti:1 --mem
 ```
 The `gpu` argument takes in the GRES specification of the GPU resource. One unfortunate problem with GRES it doesn't allow sharing GPUs between slurm jobs. This often means that if you want to run a small model that only consumes, say 25% of the GPUs max FLOPS, everyone else on the cluster will still be blocked from using the GPU. The `--jobs-per-instance` argument allows you to train multiple models on the same SLURM node in parallel on the same GPU! You just need to make sure to specify enough CPU and memory resources to run both at once. Doing so drastically saves GPU resources on the cluster if you are running parameter sweeps.
 
-<<<<<<< HEAD
 ### Using the Sweeper
 The default training script `scripts/train.py` also supports parameter sweeps. Parameter sweeps are specified using `json` files. Any of the scripts in `tools` will automatically detect that a sweep is being run based on the `entry-point` and type of config file (json) being specified. An example sweep file is found on the `vision` branch. Keys in the json file are specified via strings, with periods to separate nested structions, and values are provided as lists. For example to specify a learning rate sweep, one would add `"optim_kwargs.lr" : [0.01, 0.001]`.
 

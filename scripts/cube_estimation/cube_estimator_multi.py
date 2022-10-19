@@ -1,11 +1,8 @@
 # import the necessary packages
 import argparse
-import glob
 import os
 import sys
-import time
 from collections import deque
-from turtle import position
 
 import cv2
 import numpy as np

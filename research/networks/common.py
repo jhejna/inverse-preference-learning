@@ -1,5 +1,5 @@
 import math
-from typing import List, Optional, Union
+from typing import List, Optional, Type, Union
 
 import torch
 from torch import nn
@@ -13,13 +13,19 @@ class MLP(nn.Module):
         output_dim: int,
         hidden_layers: List[int] = [256, 256],
         act: nn.Module = nn.ReLU,
-        output_act: Optional[nn.Module] = None,
+        dropout: float = 0.0,
+        normalization: Optional[Type[nn.Module]] = None,
+        output_act: Optional[Type[nn.Module]] = None,
     ):
         super().__init__()
         net = []
         last_dim = input_dim
         for dim in hidden_layers:
             net.append(nn.Linear(last_dim, dim))
+            if dropout > 0.0:
+                net.append(nn.Dropout(dropout))
+            if normalization is not None:
+                net.append(normalization(dim))
             net.append(act())
             last_dim = dim
         net.append(nn.Linear(last_dim, output_dim))
@@ -93,6 +99,19 @@ class LinearEnsemble(nn.Module):
         )
 
 
+class EnsemblePermuter(nn.Module):
+    def __init__(self, layer_class, *layer_args, **layer_kwargs):
+        super().__init__()
+        self.layer = layer_class(*layer_args, **layer_kwargs)
+
+    def forward(self, x):
+        # permute the dimensions so it is (B, E, ...) instead of (E, B, ...)
+        x = x.transpose(0, 1)
+        x = self.layer(x)
+        x = x.transpose(0, 1)
+        return x
+
+
 class EnsembleMLP(nn.Module):
     def __init__(
         self,
@@ -101,17 +120,25 @@ class EnsembleMLP(nn.Module):
         ensemble_size: int = 3,
         hidden_layers: List[int] = [256, 256],
         act: nn.Module = nn.ReLU,
-        output_act: Optional[nn.Module] = None,
+        dropout: float = 0.0,
+        normalization: Optional[Type[nn.Module]] = None,
+        output_act: Optional[Type[nn.Module]] = None,
     ):
         """
         An ensemble MLP
         Returns values of shape (E, B, H) from input (B, H)
         """
         super().__init__()
+        # Change the normalization type to work over ensembles
+        assert normalization is None or normalization is nn.LayerNorm, "Ensemble only supports layer norm"
         net = []
         last_dim = input_dim
         for dim in hidden_layers:
             net.append(LinearEnsemble(last_dim, dim, ensemble_size=ensemble_size))
+            if dropout > 0.0:
+                net.append(nn.Dropout(dropout))
+            if normalization is not None:
+                net.append(EnsemblePermuter(normalization, (ensemble_size, dim)))
             net.append(act())
             last_dim = dim
         net.append(LinearEnsemble(last_dim, output_dim, ensemble_size=ensemble_size))

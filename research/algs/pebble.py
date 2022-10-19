@@ -1,9 +1,8 @@
 import collections
-import copy
 import itertools
 import os
 import tempfile
-from typing import Any, Dict, Optional, Tuple, Type, Union
+from typing import Dict, Optional, Tuple, Type, Union
 
 import gym
 import imageio

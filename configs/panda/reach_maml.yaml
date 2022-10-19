@@ -58,7 +58,7 @@ train_kwargs: # Arguments given to Algorithm.train
   log_freq: 50 # How often to log values
   eval_freq: 100 # How often to run evals
   max_eval_steps: 25
-  eval_ep: -1 # Number of enviornment episodes to run for evaluation, or -1 if none should be run.
+  eval_fn: null # Number of enviornment episodes to run for evaluation, or -1 if none should be run.
   loss_metric: outer_loss # The validation metric that determines when to save the "best_checkpoint"
   workers: 0 # Number of dataloader workers.
   profile_freq: 50

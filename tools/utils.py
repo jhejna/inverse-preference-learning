@@ -33,7 +33,7 @@ def get_parser() -> argparse.ArgumentParser:
         help="Set kv pairs used as args for the entry point script.",
     )
     parser.add_argument("--seeds-per-script", type=int, default=1)
-    parser.add_argument("--scripts-per-job", type=int, default=None, help="configs")
+    parser.add_argument("--scripts-per-job", type=int, default=1, help="configs")
     return parser
 
 
@@ -244,6 +244,21 @@ class Experiment(dict):
 
         return variants
 
+    @staticmethod
+    def format_name(v: Any):
+        if isinstance(v, str):
+            if "/" in v:  # TODO: get parts of path that are different
+                str_val = os.path.basename(v)
+            else:
+                str_val = v
+        elif isinstance(v, int) or isinstance(v, float) or isinstance(v, bool) or v is None:
+            str_val = str(v)
+        elif isinstance(v, list):
+            str_val = "_".join([Experiment.format_name(val) for val in v])
+        else:
+            raise ValueError("Could not convert config value to str.")
+        return str_val
+
     def generate_configs_and_names(self) -> List[Tuple[str, str]]:
         variants = self.get_variants()
         configs_and_names = []
@@ -271,19 +286,7 @@ class Experiment(dict):
                 elif k == "seed" and len(self["seed"]) > 1:  # More than one seed specified.
                     seed = v  # Note that seed is not added to the name.
                 elif len(self[k]) > 1:
-                    # Add it to the path name if it is different for each run.
-                    if isinstance(v, str):
-                        if "/" in v:  # TODO: get parts of path that are different
-                            str_val = os.path.basename(v)
-                        else:
-                            str_val = v
-                    elif isinstance(v, int) or isinstance(v, float) or isinstance(v, bool) or v is None:
-                        str_val = str(v)
-                    elif isinstance(v, list):
-                        str_val = "_".join([str(val) for val in v])
-                    else:
-                        raise ValueError("Could not convert config value to str.")
-
+                    str_val = Experiment.format_name(v)
                     name += str(config_path[0]) + "-" + str_val + "_"
                     remove_trailing_underscore = True
 

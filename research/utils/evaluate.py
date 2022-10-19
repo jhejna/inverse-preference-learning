@@ -71,12 +71,19 @@ def eval_policy(env: gym.Env, model, num_ep: int = 10) -> Dict:
     for _ in range(num_ep):
         # Reset Metrics
         done = False
+        ep_length, ep_reward = 0, 0
         obs = env.reset()
         metric_tracker.reset()
         while not done:
+            batch = dict(obs=obs)
             with torch.no_grad():
-                action = model.predict(obs)
+                action = model.predict(batch)
             obs, reward, done, info = env.step(action)
+            ep_reward += reward
             metric_tracker.step(reward, info)
+            ep_length += 1
+
+        if hasattr(env, "get_normalized_score"):
+            metric_tracker.add("score", env.get_normalized_score(ep_reward))
 
     return metric_tracker.export()

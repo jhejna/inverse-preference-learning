@@ -118,9 +118,11 @@ class Algorithm(ABC):
             self.processor = self.processor.to(self.device)
 
     def setup_network(self, network_class: Type[torch.nn.Module], network_kwargs: Dict) -> None:
-        self.network = network_class(self.observation_space, self.action_space, **network_kwargs).to(self.device)
+        self.network = network_class(
+            self.processor.observation_space, self.processor.action_space, **network_kwargs
+        ).to(self.device)
 
-    def setup_optimizers(self, optim_class: Type[torch.optim.Optimizer], optim_kwargs):
+    def setup_optimizers(self, optim_class: Type[torch.optim.Optimizer], optim_kwargs: Dict) -> None:
         # Default optimizer initialization
         self.optim["network"] = optim_class(self.network.parameters(), **optim_kwargs)
 
@@ -278,11 +280,10 @@ class Algorithm(ABC):
 
         # Create schedulers for the optimizers
         schedulers = {}
-        if schedule is not None:
-            for name, opt in self.optim.items():
-                schedulers[name] = torch.optim.lr_scheduler.LambdaLR(
-                    opt, lr_lambda=schedule(total_steps, **schedule_kwargs)
-                )
+        for k in schedule.keys():
+            if schedule[k] is not None:
+                assert k in self.optim, "Did not find schedule key in optimizers dict."
+                schedulers[k] = schedule[k](self.optim[k], **schedule_kwargs.get(k, dict()))
 
         # Grab the correct evaluation function
         eval_fn = None if eval_fn is None else vars(evaluate)[eval_fn]
@@ -294,8 +295,8 @@ class Algorithm(ABC):
         current_step = 0
         train_metric_lists = defaultdict(list)
         best_validation_metric = -1 * float("inf") if loss_metric in MAX_VALID_METRICS else float("inf")
-        last_train_log = 0
-        last_validation_log = 0
+        last_train_log = -log_freq  # Ensure that we log on the first step
+        last_validation_log = -eval_freq  # Ensure that we log on the first step
 
         # Setup training
         self._setup_train()
@@ -305,7 +306,7 @@ class Algorithm(ABC):
         start_time = current_time = time.time()
         profiling_metric_lists = defaultdict(list)
 
-        while current_step < total_steps:
+        while current_step <= total_steps:
             for batch in dataloader:
                 # Profiling
                 if profile_freq > 0 and self._steps % profile_freq == 0:
@@ -329,9 +330,6 @@ class Algorithm(ABC):
                 if profile_freq > 0 and self._steps % profile_freq == 0:
                     stop_time = time.time()
                     profiling_metric_lists["train_step"].append(stop_time - current_time)
-
-                # Increment the number of training steps.
-                self._steps += 1
 
                 # Update the schedulers
                 for scheduler in schedulers.values():
@@ -409,12 +407,15 @@ class Algorithm(ABC):
                     self.save(path, "final_model")  # Also save the final model every eval period.
                     self.train_mode()
 
+                # Increment the number of training steps.
+                # Technically we have done one more, but this keeps logs at uniform positions.
+                self._steps += 1
+                if current_step >= total_steps:
+                    break
+
                 # Profiling
                 if profile_freq > 0 and self._steps % profile_freq == 0:
                     current_time = time.time()
-
-                if current_step >= total_steps:
-                    break
 
             self._epochs += 1
         logger.close()
@@ -460,12 +461,9 @@ class Algorithm(ABC):
         override the _predict funciton in your algorithm.
         """
         with torch.no_grad():
-            if hasattr(self.network, "predict"):
-                pred = self.network.predict(batch, **kwargs)
-            else:
-                if len(kwargs) > 0:
-                    raise ValueError("Default predict method does not accept key word args, but they were provided.")
-                pred = self.network(batch)
+            if len(kwargs) > 0:
+                raise ValueError("Default predict method does not accept key word args, but they were provided.")
+            pred = self.network(batch)
         return pred
 
     def predict(self, batch: Any, is_batched: bool = False, **kwargs) -> Any:
