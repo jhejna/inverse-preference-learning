@@ -19,15 +19,21 @@ repos:
       - id: check-added-large-files
       - id: debug-statements
 
-  - repo: https://github.com/psf/black
-    rev: 22.6.0
+  - repo: https://github.com/hadialqattan/pycln
+    rev: v2.1.1
     hooks:
-      - id: black
+      - id: pycln
 
   - repo: https://github.com/timothycrosley/isort
     rev: 5.10.1
     hooks:
       - id: isort
+
+
+  - repo: https://github.com/psf/black
+    rev: 22.6.0
+    hooks:
+      - id: black
 
   - repo: https://gitlab.com/pycqa/flake8
     rev: 3.8.4

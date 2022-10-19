@@ -10,7 +10,6 @@ import utils
 SLURM_LOG_DEFAULT = os.path.join(utils.STORAGE_ROOT, "slurm_logs")
 
 SLURM_ARGS = {
-    "account": {"type": str, "required": True},
     "partition": {"type": str, "required": True},
     "time": {"type": str, "default": "48:00:00"},
     "nodes": {"type": int, "default": 1},
@@ -23,6 +22,7 @@ SLURM_ARGS = {
     "job-name": {"type": str, "required": True},
     "exclude": {"type": str, "required": False, "default": None},
     "nodelist": {"type": str, "required": False, "default": None},
+    "account": {"type": str, "required": False, "default": None},
 }
 
 SLURM_NAME_OVERRIDES = {"gpus": "gres", "cpus": "cpus-per-task"}
