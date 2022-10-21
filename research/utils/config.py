@@ -6,6 +6,8 @@ from typing import Any, Dict
 
 import yaml
 
+from .utils import flatten_dict
+
 
 class Config(object):
     def __init__(self):
@@ -94,21 +96,9 @@ class Config(object):
         config.update(data)
         return config
 
-    @staticmethod
-    def _flatten_helper(flattened_config: Dict, value: Any, prefix: str, separator: str = ".") -> None:
-        if isinstance(value, dict) and all([isinstance(k, str) for k in value.keys()]):
-            # We have another nested configuration dictionary
-            for k in value.keys():
-                Config._flatten_helper(flattened_config, value[k], prefix + separator + k, separator=separator)
-        else:
-            # We do not have a config file, just return the regular value.
-            flattened_config[prefix[1:]] = value  # Note that we remove the first prefix because it has a leading '.'
-
-    def flatten(self, separator: str = ".") -> Dict:
+    def flatten(self) -> Dict:
         """Returns a flattened version of the config where '.' separates nested values"""
-        flattened_config = {}
-        Config._flatten_helper(flattened_config, self.config, "", separator=separator)
-        return flattened_config
+        return flatten_dict(self.config)
 
     def __getitem__(self, key: str) -> Any:
         return self.config[key]

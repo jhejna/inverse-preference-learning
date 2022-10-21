@@ -74,7 +74,7 @@ def squeeze(batch: Any, dim: int) -> Any:
     return batch
 
 
-def get_from_batch(batch: Any, start: int, end: Optional[int] = None) -> Any:
+def get_from_batch(batch: Any, start: Union[int, np.ndarray, torch.Tensor], end: Optional[int] = None) -> Any:
     if isinstance(batch, dict):
         batch = {k: get_from_batch(v, start, end=end) for k, v in batch.items()}
     elif isinstance(batch, list) or isinstance(batch, tuple):
@@ -91,8 +91,8 @@ def get_from_batch(batch: Any, start: int, end: Optional[int] = None) -> Any:
 
 def set_in_batch(batch: Any, value: Any, start: int, end: Optional[int] = None) -> None:
     if isinstance(batch, dict):
-        for v in batch.values():
-            set_in_batch(v, value, start, end=end)
+        for k, v in batch.items():
+            set_in_batch(v, value[k], start, end=end)
     elif isinstance(batch, list) or isinstance(batch, tuple):
         for v in batch:
             set_in_batch(v, value, start, end=end)
@@ -190,10 +190,39 @@ def np_dataset_alloc(
         raise ValueError("Invalid space provided")
 
 
-def fetch_from_dict(data_dict: Dict, keys: Union[str, List, Tuple]) -> List[Any]:
+def _flatten_dict_helper(flat_dict: Dict, value: Any, prefix: str, separator: str = ".") -> None:
+    if isinstance(value, dict):
+        for k in value.keys():
+            assert isinstance(k, str), "Can only flatten dicts with str keys"
+            _flatten_dict_helper(flat_dict, value[k], prefix + separator + k, separator=separator)
+    else:
+        flat_dict[prefix[1:]] = value
+
+
+def flatten_dict(d: Dict) -> Dict:
+    flat_dict = dict()
+    _flatten_dict_helper(flat_dict, d, "")
+    return flat_dict
+
+
+def nest_dict(d: Dict) -> Dict:
+    nested_d = dict()
+    for key in d.keys():
+        key_parts = key.split(".")
+        current_d = nested_d
+        while len(key_parts) > 1:
+            if key_parts[0] not in current_d:
+                current_d[key_parts[0]] = dict()
+            current_d = current_d[key_parts[0]]
+            key_parts.pop(0)
+        current_d[key_parts[0]] = d[key]  # Set the value
+    return nested_d
+
+
+def fetch_from_dict(d: Dict, keys: Union[str, List, Tuple]) -> List[Any]:
     """
     inputs:
-        data_dict: a nested dictionary datastrucutre
+        d: a nested dictionary datastrucutre
         keys: a list of string keys, with '.' separating nested items.
     """
     outputs = []
@@ -201,7 +230,7 @@ def fetch_from_dict(data_dict: Dict, keys: Union[str, List, Tuple]) -> List[Any]
         keys = [keys]
     for key in keys:
         key_parts = key.split(".")
-        current_dict = data_dict
+        current_dict = d
         while len(key_parts) > 1:
             current_dict = current_dict[key_parts[0]]
             key_parts.pop(0)
