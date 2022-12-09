@@ -67,7 +67,7 @@ def collect_dataset(
     del expert_model.eval_env
     env = expert_model.env
     dataset = ReplayBuffer(
-        env.observation_space, env.action_space, capacity=5000000, cleanup=False
+        env.observation_space, env.action_space, capacity=1000000, distributed=False
     )  # hardcode to 5 mil max transitions
     for _ in range(random_ep):
         collect_random_episode(env, dataset)
@@ -89,7 +89,7 @@ def collect_dataset(
 
     # save the dataset
     goal = config["env_kwargs"]["goal"]
-    dataset.save(os.path.join(save_path, "x{}_y{}".format(goal[0], goal[1])))
+    dataset.save_flat(os.path.join(save_path, "x{}_y{}".format(goal[0], goal[1])))
 
 
 if __name__ == "__main__":

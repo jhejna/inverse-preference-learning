@@ -5,7 +5,7 @@
         ["alg", "alg_kwargs.reset_reward_net", "checkpoint"]
     ],
     "env": ["mw_button-press-v2"],
-    "alg": ["PEBBLE", "PEBBLE", "PEBBLE_MAML_Adam"],
+    "alg": ["PEBBLE", "PEBBLE", "FewShotPEBBLE"],
     "alg_kwargs.reset_reward_net": [false, false, true],
     "checkpoint": [null, "/path/to/pretrained/checkpoint/best_model.pt", "/path/to/pretrained/checkpoint/best_model.pt"],
     "alg_kwargs.init_feedback_size": [8],

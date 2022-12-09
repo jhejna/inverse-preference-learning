@@ -117,7 +117,7 @@ def collect_dataset(
         for i, task in enumerate(tasks):
             dest_env.set_task(task)
             dataset = ReplayBuffer(
-                dest_env.observation_space, dest_env.action_space, capacity=total_ep_per_env * 502, cleanup=False
+                dest_env.observation_space, dest_env.action_space, capacity=total_ep_per_env * 502, distributed=False
             )
 
             # Setup the expert policy
@@ -143,7 +143,7 @@ def collect_dataset(
             for _ in range(random_ep):
                 collect_random_episode(dest_env, dataset)
             save_path = os.path.join(path, "cls_{}_task_{}".format(name, i))
-            dataset.save(save_path)
+            dataset.save_flat(save_path)
 
 
 def seed(seed):

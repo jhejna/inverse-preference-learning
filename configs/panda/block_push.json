@@ -4,7 +4,7 @@
         ["alg_kwargs.max_feedback", "alg_kwargs.init_feedback_size"],
         ["alg", "alg_kwargs.reset_reward_net", "checkpoint"]
     ],
-    "alg": ["PEBBLE", "PEBBLE_MAML_Adam"],
+    "alg": ["PEBBLE", "FewShotPEBBLE"],
     "env": ["PyBulletPandaBlockPushFix-v0"],
     "env_kwargs.state_noise": [0.001],
     "env_kwargs.goal": [[0.35, 0.3], [0.35, -0.3]],

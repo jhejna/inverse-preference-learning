@@ -1,6 +1,6 @@
 # Example Config that uses almost all values
 
-alg: PEBBLE_MAML_Adam
+alg: FewShotPEBBLE
 alg_kwargs:
   tau: 0.005
   init_temperature: 0.1

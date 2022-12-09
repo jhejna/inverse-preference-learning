@@ -102,5 +102,5 @@ class ComposeProcessor(Processor):
 
     def unprocess(self, batch: Any) -> Any:
         for processor in reversed(self.processors):
-            batch = processor(batch)
+            batch = processor.unprocess(batch)
         return batch
