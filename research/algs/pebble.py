@@ -12,8 +12,7 @@ import torch
 from research.datasets.feedback_buffer import FeedbackLabelDataset
 from research.datasets.replay_buffer import ReplayBuffer
 from research.networks.base import ActorCriticRewardPolicy
-from research.utils import utils
-from research.utils.utils import to_device, to_tensor, unsqueeze
+from research.utils.utils import to_device, to_tensor
 
 from .base import Algorithm
 
