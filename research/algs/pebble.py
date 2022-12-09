@@ -185,25 +185,16 @@ class PEBBLE(Algorithm):
     def setup_datasets(self) -> None:
         super().setup_datasets()
         assert isinstance(self.dataset, ReplayBuffer), "Must use replay buffer for PEBBLE"
+        assert self.dataset.distributed == False, "Cannot use distributed replay buffer with PEBBLE"
         # Note that the dataloader for the reward model runs on a single thread!
         self.feedback_dataset = FeedbackLabelDataset(
             self.observation_space,
             self.action_space,
-            self.dataset.storage_path,
-            segment_size=self.segment_size,
-            nstep=self.dataset.nstep,
             discount=self.dataset.discount,
-            batch_size=self.reward_batch_size,
-            replay_capacity=self.feedback_replay_window,
-            segment_capacity=self.max_feedback + 1,
-            cleanup=self.dataset.cleanup,
-            preload_path=self.feedback_preload_path,
+            nstep=self.dataset.nstep,
+            segment_size=self.segment_size,
+            capacity=self.max_feedback + 1,
         )
-        # Check the cleanup value. Note this has to be done before multi-threading starts when iter
-        # is called on the dataloader.
-        if self.dataset.cleanup:
-            print("[NOTICE] setting replay buffer to not clean-up for compatibility with PEBBLE")
-            self.dataset.cleanup = False
         self.feedback_dataloader = torch.utils.data.DataLoader(
             self.feedback_dataset, batch_size=None, num_workers=0, pin_memory=(self.device.type == "cuda")
         )
