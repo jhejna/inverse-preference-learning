@@ -1,5 +1,8 @@
 # Few-Shot Preference Learning for Human-in-the-Loop RL
 
+## Warning -- Code under development
+This code is actively being updated, and should be aligned with the most current version of the [research-lightning repo](https://github.com/jhejna/research-lightning) within a few weeks. The exact code used for the paper can be found in the supplemental material on openreview [here](https://openreview.net/attachment?id=IKC5TfXLuW0&name=supplementary_material).
+
 ## Installation
 
 First cloen the repository. Then complete the following steps:
