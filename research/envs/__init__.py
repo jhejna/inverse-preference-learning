@@ -1,5 +1,5 @@
 # Register environment classes here
-from .empty import Empty
+from .base import Empty
 
 # If we want to register environments in gym.
 # These will be loaded when we import the research package.

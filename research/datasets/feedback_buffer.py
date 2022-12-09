@@ -49,10 +49,10 @@ class FeedbackLabelDataset(torch.utils.data.IterableDataset):
             self.add(get_from_batch(queries, num_b4_wrap, num_to_add), labels[num_b4_wrap:])
         else:
             start, end = self._idx, self._idx + num_to_add
-            set_in_batch(self.obs_1_buffer, queries["obs_1"])
-            set_in_batch(self.obs_2_buffer, queries["obs_2"])
-            set_in_batch(self.action_1_buffer, queries["action_1"])
-            set_in_batch(self.action_2_buffer, queries["action_2"])
+            set_in_batch(self.obs_1_buffer, queries["obs_1"], start, end)
+            set_in_batch(self.obs_2_buffer, queries["obs_2"], start, end)
+            set_in_batch(self.action_1_buffer, queries["action_1"], start, end)
+            set_in_batch(self.action_2_buffer, queries["action_2"], start, end)
             self.label_buffer[start:end] = labels
             self._idx = (self._idx + num_to_add) % self._capacity
             self._size = min(self._size + num_to_add, self._capacity)
@@ -67,7 +67,7 @@ class FeedbackLabelDataset(torch.utils.data.IterableDataset):
         return dict(obs_1=obs_1, obs_2=obs_2, action_1=action_1, action_2=action_2, label=label)
 
     def __len__(self):
-        return self.buffer_size
+        return self._size
 
     def __iter__(self):
         assert torch.utils.data.get_worker_info() is None, "FeedbackLabel Dataset is not designed for parallelism."

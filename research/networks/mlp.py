@@ -1,3 +1,4 @@
+import math
 from functools import partial
 from typing import List, Optional, Type
 
@@ -278,7 +279,7 @@ class DiagonalGaussianMLPActor(nn.Module):
         return dist
 
 
-class RewardEnsemble(nn.Module):
+class RewardMLPEnsemble(nn.Module):
     def __init__(
         self,
         observation_space,
@@ -301,3 +302,55 @@ class RewardEnsemble(nn.Module):
     def forward(self, obs, action):
         obs_action = torch.cat((obs, action), dim=1)
         return self.net(obs_action).squeeze(-1)
+
+
+class MetaRewardMLPEnsemble(nn.Module):
+    def __init__(
+        self,
+        observation_space,
+        action_space,
+        hidden_layers=[256, 256, 256],
+        ensemble_size=3,
+        act=F.leaky_relu,
+        output_act=torch.tanh,
+    ):
+        super().__init__()
+        params = {}
+        last_dim = observation_space.shape[0] + action_space.shape[0]
+        self.num_layers = len(hidden_layers) + 1
+        for i, dim in enumerate(
+            hidden_layers
+            + [
+                1,
+            ]
+        ):
+            weight = torch.empty(ensemble_size, last_dim, dim)
+            for w in weight:
+                w.transpose_(0, 1)
+                nn.init.kaiming_uniform_(w, a=math.sqrt(5))
+                w.transpose_(0, 1)
+            params[f"linear_w_{i}"] = nn.Parameter(weight)
+            fan_in, _ = nn.init._calculate_fan_in_and_fan_out(params[f"linear_w_{i}"][0].T)
+            bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
+            params[f"linear_b_{i}"] = nn.Parameter(
+                nn.init.uniform_(torch.empty(ensemble_size, 1, dim, requires_grad=True), -bound, bound)
+            )
+            last_dim = dim
+
+        self.params = nn.ParameterDict(params)
+        self.ensemble_size = ensemble_size
+        self.act = act
+        self.output_act = output_act
+
+    def forward(self, obs, action, params=None):
+        if params is None:
+            params = self.params
+        x = torch.cat((obs, action), dim=1)
+        x = x.repeat(self.ensemble_size, 1, 1)
+        for i in range(self.num_layers):
+            x = torch.baddbmm(params[f"linear_b_{i}"], x, params[f"linear_w_{i}"])
+            if i == self.num_layers - 1:
+                x = self.output_act(x)
+            else:
+                x = self.act(x)
+        return x.squeeze(-1)

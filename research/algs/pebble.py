@@ -2,7 +2,7 @@ import collections
 import itertools
 import os
 import tempfile
-from typing import Dict, Optional, Tuple, Type, Union
+from typing import Any, Dict, Optional, Tuple, Type, Union
 
 import gym
 import imageio
@@ -23,7 +23,7 @@ class RunningStats(object):
     ) -> None:
         self._mean = torch.zeros(shape, device=device)
         self._var = torch.ones(shape, device=device)
-        self._count = 0
+        self._count = epsilon
 
     def update(self, x: torch.Tensor) -> None:
         assert x.shape[1:] == self._mean.shape, "Incorrect shape provided"
@@ -75,8 +75,6 @@ class PEBBLE(Algorithm):
         reward_batch_size: int = 256,
         segment_size: int = 25,
         feedback_schedule: str = "constant",
-        feedback_replay_window: int = 1000000,
-        feedback_preload_path: Optional[str] = None,
         reward_optim: Type[torch.optim.Optimizer] = torch.optim.Adam,
         reward_optim_kwargs: Dict = {"lr": 0.0003},
         reset_reward_net: bool = False,
@@ -108,20 +106,16 @@ class PEBBLE(Algorithm):
         self.reward_freq = reward_freq
         self.init_steps = init_steps
         self.unsup_steps = unsup_steps
-
         self.reward_init_steps = self.init_steps + self.unsup_steps
-
-        # Segment parameters
-        self.segment_size = segment_size
+        self.action_range = [float(self.action_space.low.min()), float(self.action_space.high.max())]
 
         # Feedback Parameters
+        self.segment_size = segment_size
         self.max_feedback = max_feedback
         self.total_feedback = 0
         self.init_feedback_size = init_feedback_size
-        self.feedback_replay_window = feedback_replay_window
         self.feedback_schedule = feedback_schedule
         self.feedback_sample_multiplier = feedback_sample_multiplier
-        self.feedback_preload_path = feedback_preload_path
         self._saved_recent_visualizations = True
         self.reward_shift = reward_shift
         self.reward_scale = reward_scale
@@ -215,8 +209,7 @@ class PEBBLE(Algorithm):
             log_prob = dist.log_prob(next_action).sum(dim=-1)
             target_qs = self.target_network.critic(batch["next_obs"], next_action)
             target_v = torch.min(target_qs, dim=0)[0] - self.alpha.detach() * log_prob
-            reward_obs_key = "next_obs" if self.use_next_obs else "obs"
-            reward = self.network.reward(batch[reward_obs_key], batch["action"]).mean(dim=0)  # Should be shape (B, 0)
+            reward = self.network.reward(batch["obs"], batch["action"]).mean(dim=0)  # Should be shape (B, 0)
             reward = self.reward_scale * reward + self.reward_shift
             target_q = reward + batch["discount"] * target_v
 
@@ -449,7 +442,7 @@ class PEBBLE(Algorithm):
                 losses.append(loss.item())
                 # Compute the accuracy
                 with torch.no_grad():
-                    pred = logits.argmax(dim=1)  # Now this is shape (B, E)
+                    pred = (logits > 0).float()
                     accuracy = (pred == labels).float().mean()
                     accuracies.append(accuracy.item())
             epochs += 1
@@ -480,7 +473,7 @@ class PEBBLE(Algorithm):
         else:
             self.eval_mode()
             with torch.no_grad():
-                action = self.predict(self._current_obs, sample=True)
+                action = self.predict(dict(obs=self._current_obs), sample=True)
             self.train_mode()
         action = np.clip(action, self.env.action_space.low, self.env.action_space.high)
 
@@ -600,6 +593,7 @@ class PEBBLE(Algorithm):
         raise NotImplementedError("RL Algorithm does not have a validation dataset.")
 
     def _validation_extras(self, path: str, step: int, validation_dataloader) -> Dict:
+        return {}  # temporary override on saving visualizations. Need to debug mujoco renderer.
         assert validation_dataloader is None
         if self._saved_recent_visualizations:
             return {}
@@ -626,7 +620,7 @@ class PEBBLE(Algorithm):
             imageio.imwrite(out_path, grid)
         return {}
 
-    def _render_segment(self, states: np.npdarray, height: int = 128, width: int = 128) -> np.ndarray:
+    def _render_segment(self, states: np.ndarray, height: int = 128, width: int = 128) -> np.ndarray:
         assert self.eval_env is not None and hasattr(self.eval_env, "set_state")
         imgs = []
         max_imgs = 12
@@ -640,6 +634,17 @@ class PEBBLE(Algorithm):
         # Concatenate the images on the last axis
         imgs = np.concatenate(imgs, axis=1)
         return imgs
+
+    def _predict(self, batch: Any, sample: bool = False) -> torch.Tensor:
+        with torch.no_grad():
+            z = self.network.encoder(batch["obs"])
+            dist = self.network.actor(z)
+            if sample:
+                action = dist.sample()
+            else:
+                action = dist.loc
+            action = action.clamp(*self.action_range)
+            return action
 
     def _save_extras(self) -> Dict:
         return {"log_alpha": self.log_alpha}

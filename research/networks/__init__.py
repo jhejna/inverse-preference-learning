@@ -7,5 +7,6 @@ from .mlp import (
     MLPValue,
     MLPEncoder,
     DiscreteMLPCritic,
-    RewardEnsemble,
+    RewardMLPEnsemble,
+    MetaRewardMLPEnsemble,
 )

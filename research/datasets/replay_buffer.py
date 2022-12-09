@@ -141,10 +141,6 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
 
         # Data Storage parameters
         self.capacity = capacity  # The total storage of the dataset, or None if growth is disabled
-        if self.capacity is not None:
-            # Setup a storage path
-            self.storage_path = tempfile.mkdtemp(prefix="replay_buffer_")
-            print("[research] Replay Buffer Storage Path", self.storage_path)
         self.distributed = distributed  # Whether or not the dataset is created in __init__ or __iter__
         self.cleanup = cleanup
         self.path = path
@@ -165,6 +161,10 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         if not self.distributed:
             print("[research] Replay Buffer not distributed. Alloc-ing in __init__")
             self._alloc()
+        elif self.capacity is not None:
+            # Setup a storage path
+            self.storage_path = tempfile.mkdtemp(prefix="replay_buffer_")
+            print("[research] Replay Buffer Storage Path", self.storage_path)
 
     def preload(self):
         """
@@ -231,6 +231,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
             # Set the size to be the shape of the reward buffer
             self._size = self._reward_buffer.shape[0]
             self._idx = self._size
+            assert self._size > 0, "Fixed replay buffer found no data at specified path."
 
     def add(
         self,
