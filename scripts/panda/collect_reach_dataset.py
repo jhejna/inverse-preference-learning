@@ -36,6 +36,7 @@ def create_random_dataset(target_pos: np.ndarray, path: str) -> None:
     env = gym.make("PyBulletPandaReach-v0", goal=target_pos, initialization_noise=initialization_noise)
     env._max_episode_steps = args.ep_length
     dataset = ReplayBuffer(env.observation_space, env.action_space, capacity=args.num_steps, distributed=False)
+    dataset.setup()
     # Collect data
     num_steps = 0
     done = True

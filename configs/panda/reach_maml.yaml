@@ -22,7 +22,7 @@ network_kwargs:
   critic_class: ContinuousMLPCritic
   critic_kwargs:
     hidden_layers: [256, 256, 256]
-    num_q_fns: 2
+    ensemble_size: 2
     ortho_init: true
   reward_class: MetaRewardMLPEnsemble
   reward_kwargs:

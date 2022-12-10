@@ -75,6 +75,7 @@ env_id += "-v0"
 def create_random_dataset(target_pos: Tuple[float, float], path: str) -> None:
     env = gym.make(env_id, task_kwargs=dict(target_pos=target_pos))
     dataset = ReplayBuffer(env.observation_space, env.action_space, capacity=args.num_steps, distributed=False)
+    dataset.setup()
     # Collect data
     num_steps = 0
     done = True

@@ -68,7 +68,8 @@ def collect_dataset(
     env = expert_model.env
     dataset = ReplayBuffer(
         env.observation_space, env.action_space, capacity=1000000, distributed=False
-    )  # hardcode to 5 mil max transitions
+    )  # hardcode to 1 mil max transitions
+    dataset.setup()
     for _ in range(random_ep):
         collect_random_episode(env, dataset)
 

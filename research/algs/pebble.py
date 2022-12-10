@@ -423,7 +423,7 @@ class PEBBLE(Algorithm):
         if self.reset_reward_net:
             checkpoint = torch.load(self.checkpoint_path, map_location=self.device)
             reward_params = collections.OrderedDict(
-                [(k[8:], v) for k, v in checkpoint["network"].items() if k.startswith("_reward")]
+                [(k[7:], v) for k, v in checkpoint["network"].items() if k.startswith("reward")]
             )
             self.network.reward.load_state_dict(reward_params)
 
@@ -705,7 +705,7 @@ class FewShotPEBBLE(PEBBLE):
         assert self.reset_reward_net, "Must reset network for PEBBLE with explicit MAML"
         checkpoint = torch.load(self.checkpoint_path, map_location=self.device)
         reward_params = collections.OrderedDict(
-            [(k[8:], v) for k, v in checkpoint["network"].items() if k.startswith("_reward")]
+            [(k[7:], v) for k, v in checkpoint["network"].items() if k.startswith("reward")]
         )
         self.network.reward.load_state_dict(reward_params)
         self._inner_lrs.load_state_dict(checkpoint["lrs"])
@@ -726,7 +726,7 @@ class FewShotPEBBLE(PEBBLE):
                 losses.append(loss.item())
                 # Compute the accuracy
                 with torch.no_grad():
-                    pred = logits.argmax(dim=1)  # Now this is shape (B, E)
+                    pred = (logits > 0).float()
                     accuracy = (pred == labels).float().mean()
                     accuracies.append(accuracy.item())
             epochs += 1
@@ -760,7 +760,7 @@ class FewShotPEBBLE(PEBBLE):
                 losses.append(loss.item())
                 # Compute the accuracy
                 with torch.no_grad():
-                    pred = logits.argmax(dim=1)  # Now this is shape (B, E)
+                    pred = (logits > 0).float()
                     accuracy = (pred == labels).float().mean()
                     accuracies.append(accuracy.item())
             epochs += 1

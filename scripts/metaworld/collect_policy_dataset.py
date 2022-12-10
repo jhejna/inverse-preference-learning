@@ -119,12 +119,12 @@ def collect_dataset(
             dataset = ReplayBuffer(
                 dest_env.observation_space, dest_env.action_space, capacity=total_ep_per_env * 502, distributed=False
             )
+            dataset.setup()
 
             # Setup the expert policy
             src_env = ALL_V2_ENVIRONMENTS_GOAL_OBSERVABLE[task.env_name + "-goal-observable"]()
             data = pickle.loads(task.data)
             data["partially_observable"] = False
-            print(type(src_env), data["env_cls"])
             src_env.set_task(Task(env_name=task.env_name, data=pickle.dumps(data)))  # POTENTIAL ERROR
             policy_name = "".join([s.capitalize() for s in task.env_name.split("-")])
             policy_name = policy_name.replace("PegInsert", "PegInsertion")
