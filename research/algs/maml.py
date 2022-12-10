@@ -69,10 +69,12 @@ class PreferenceMAML(Algorithm):
         r_hat2 = self.reward_network.forward(
             batch["obs_2"].view(*flat_obs_shape), batch["action_2"].view(flat_action_shape), parameters
         )
+        labels = batch["label"].float()
         # Handle the ensemble case
         if len(r_hat1.shape) > 1:
             E, B_times_S = r_hat1.shape
             out_shape = (E, B, S)
+            labels = labels.unsqueeze(0).expand(E, -1)
         else:
             E, B_times_S = 0, r_hat1.shape[0]
             out_shape = (B, S)
@@ -81,10 +83,9 @@ class PreferenceMAML(Algorithm):
         r_hat1 = r_hat1.view(*out_shape).sum(dim=-1)  # Shape (E, B) or (B,)
         r_hat2 = r_hat2.view(*out_shape).sum(dim=-1)  # Shape (E, B) or (B,)
         logits = r_hat2 - r_hat1
-        labels = batch["label"].float()
 
         loss = self.reward_criterion(logits, labels).mean(dim=-1)
-        if len(loss.shape) == 2:
+        if E > 0:
             loss = loss.sum(dim=0)
 
         # Compute the accuracy
@@ -100,7 +101,7 @@ class PreferenceMAML(Algorithm):
             loss, accuracy = self._compute_loss_and_accuracy(batch, parameters)
             accuracies.append(accuracy)
             grads = torch.autograd.grad(loss, parameters.values(), create_graph=train)
-            for j, (k, v) in enumerate(parameters.items()):
+            for j, k in enumerate(parameters.keys()):
                 parameters[k] = parameters[k] - self._inner_lrs[k] * grads[j]
 
         with torch.no_grad():

@@ -37,14 +37,19 @@ class SAC(Algorithm):
         self.actor_freq = actor_freq
         self.target_freq = target_freq
         self.init_steps = init_steps
+        self.action_range = [float(self.action_space.low.min()), float(self.action_space.high.max())]
 
     @property
     def alpha(self) -> torch.Tensor:
         return self.log_alpha.exp()
 
     def setup_network(self, network_class: Type[torch.nn.Module], network_kwargs: Dict) -> None:
-        self.network = network_class(self.observation_space, self.action_space, **network_kwargs).to(self.device)
-        self.target_network = network_class(self.observation_space, self.action_space, **network_kwargs).to(self.device)
+        self.network = network_class(
+            self.processor.observation_space, self.processor.action_space, **network_kwargs
+        ).to(self.device)
+        self.target_network = network_class(
+            self.processor.observation_space, self.processor.action_space, **network_kwargs
+        ).to(self.device)
         self.target_network.load_state_dict(self.network.state_dict())
         for param in self.target_network.parameters():
             param.requires_grad = False
@@ -74,7 +79,7 @@ class SAC(Algorithm):
 
         qs = self.network.critic(batch["obs"], batch["action"])
         q_loss = (
-            torch.nn.functional.mse_loss(qs, target_q.expand(qs.shape[0], -1)).mean(dim=-1).sum()
+            torch.nn.functional.mse_loss(qs, target_q.expand(qs.shape[0], -1), reduction="none").mean(dim=-1).sum()
         )  # averages over the ensemble. No for loop!
 
         self.optim["critic"].zero_grad(set_to_none=True)
@@ -118,7 +123,7 @@ class SAC(Algorithm):
         else:
             self.eval_mode()
             with torch.no_grad():
-                action = self.predict(self._current_obs, sample=True)
+                action = self.predict(dict(obs=self._current_obs), sample=True)
             self.train_mode()
         action = np.clip(action, self.action_space.low, self.action_space.high)
 
@@ -160,7 +165,6 @@ class SAC(Algorithm):
         self._episode_length = 0
         self._num_ep = 0
         self._env_steps = 0
-        self.dataset.add(self._current_obs)  # Store the initial reset observation!
 
     def _train_step(self, batch: Dict) -> Dict:
         all_metrics = {}
@@ -205,11 +209,22 @@ class SAC(Algorithm):
 
         return all_metrics
 
+    def _predict(self, batch: Any, sample: bool = False) -> torch.Tensor:
+        with torch.no_grad():
+            z = self.network.encoder(batch["obs"])
+            dist = self.network.actor(z)
+            if sample:
+                action = dist.sample()
+            else:
+                action = dist.loc
+            action = action.clamp(*self.action_range)
+            return action
+
     def _validation_step(self, batch: Any):
         raise NotImplementedError("RL Algorithm does not have a validation dataset.")
 
     def _save_extras(self) -> Dict:
         return {"log_alpha": self.log_alpha}
 
-    def _load_extras(self, checkpoint, strict=True) -> Dict:
+    def _load_extras(self, checkpoint) -> Dict:
         self.log_alpha.data = checkpoint["log_alpha"].data

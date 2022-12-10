@@ -35,7 +35,8 @@ def create_random_dataset(target_pos: np.ndarray, path: str) -> None:
     initialization_noise = args.noise_magnitude
     env = gym.make("PyBulletPandaReach-v0", goal=target_pos, initialization_noise=initialization_noise)
     env._max_episode_steps = args.ep_length
-    dataset = ReplayBuffer(env.observation_space, env.action_space, capacity=args.num_steps, cleanup=False)
+    dataset = ReplayBuffer(env.observation_space, env.action_space, capacity=args.num_steps, distributed=False)
+    dataset.setup()
     # Collect data
     num_steps = 0
     done = True
@@ -60,7 +61,7 @@ def create_random_dataset(target_pos: np.ndarray, path: str) -> None:
 
     # save the dataset
     save_path = os.path.join(path, "x{}_y{}_z{}".format(target_pos[0], target_pos[1], target_pos[2]))
-    dataset.save(save_path)
+    dataset.save_flat(save_path)
 
 
 # Create the train and validation datasets

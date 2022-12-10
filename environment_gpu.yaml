@@ -46,7 +46,7 @@ dependencies:
 
   - pip
   - pip:
-      - gym<=0.24.1
+      - gym==0.23.1
       - dm_control
       - mujoco-py<2.2,>=2.1
       - git+https://github.com/rlworkgroup/metaworld.git@master#egg=metaworld

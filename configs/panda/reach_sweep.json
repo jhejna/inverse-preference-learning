@@ -6,7 +6,7 @@
     ],
     "env": ["PyBulletPandaReach-v0"],
     "env_kwargs.goal": [[0.55, 0.35, 0.125], [0.45, -0.3, 0.25]],
-    "alg": ["PEBBLE", "PEBBLE_MAML_Adam"],
+    "alg": ["PEBBLE", "FewShotPEBBLE"],
     "alg_kwargs.reset_reward_net": [false, true],
     "alg_kwargs.reward_batch_size": [256],
     "alg_kwargs.segment_size": [25],

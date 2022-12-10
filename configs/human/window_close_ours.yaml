@@ -1,6 +1,6 @@
 # Example Config that uses almost all values
 
-alg: PEBBLE_MAML_Adam
+alg: FewShotPEBBLE
 alg_kwargs:
   tau: 0.005
   init_temperature: 0.1
@@ -13,12 +13,12 @@ alg_kwargs:
   max_feedback: 64
   init_feedback_size: 10
   reward_batch_size: 256
-  reward_init_steps: null
+
   segment_size: 25
   feedback_schedule: constant
   feedback_sample_multiplier: 10
-  feedback_replay_window: 800000
-  feedback_preload_path: null
+
+
   reward_optim: ["import", "torch.optim", "Adam"]
   reward_optim_kwargs:
     lr: 0.0003
@@ -43,7 +43,7 @@ network_kwargs:
   critic_class: ContinuousMLPCritic
   critic_kwargs:
     hidden_layers: [256, 256, 256]
-    num_q_fns: 2
+    ensemble_size: 2
     ortho_init: true
   reward_class: MetaRewardMLPEnsemble
   reward_kwargs:

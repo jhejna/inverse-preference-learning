@@ -22,7 +22,7 @@ network_kwargs:
   critic_class: ContinuousMLPCritic
   critic_kwargs:
     hidden_layers: [256, 256, 256]
-    num_q_fns: 2
+    ensemble_size: 2
     ortho_init: true
   reward_class: MetaRewardMLPEnsemble
   reward_kwargs:
@@ -40,16 +40,15 @@ env: mw_sweep-into-v2
 
 dataset: MultiTaskOracleFeedbackDataset
 dataset_kwargs:
-  paths: path/to/dataset
+  paths: ../datasets/fs_test/ml10/
   discount: 0.99
   nstep: 1
   batch_size: 64
-  replay_capacity: 200000
-  segment_capacity: 6000
+  capacity: 6000
   segment_size: 25
 validation_dataset_kwargs:
-  paths: path/to/validation/dataset
-  segment_capacity: 5000
+  paths: ../datasets/fs_test/ml10_valid
+  capacity: 5000
 
 processor: null
 
@@ -58,7 +57,6 @@ train_kwargs: # Arguments given to Algorithm.train
   log_freq: 100 # How often to log values
   eval_fn: null
   max_eval_steps: 10
-  eval_ep: -1 # Number of enviornment episodes to run for evaluation, or -1 if none should be run.
   loss_metric: outer_loss # The validation metric that determines when to save the "best_checkpoint"
   workers: 0 # Number of dataloader workers.
   profile_freq: 50

@@ -1,134 +1,63 @@
-from torch import nn
+from functools import partial
+from typing import Optional, Union
+
+import gym
+import torch
 
 import research
 
 
-class ActorCriticPolicy(nn.Module):
-    def __init__(
-        self,
-        observation_space,
-        action_space,
-        actor_class,
-        critic_class,
-        encoder_class=None,
-        actor_kwargs={},
-        critic_kwargs={},
-        encoder_kwargs={},
-        **kwargs,
-    ) -> None:
+class NetworkContainer(torch.nn.Module):
+    CONTAINERS = []
+
+    def __init__(self, observation_space: gym.Space, action_space: gym.Space, **kwargs) -> None:
         super().__init__()
-        # Update all dictionaries with the generic kwargs
+        # save the classes and containers
+        base_kwargs = {k: v for k, v in kwargs.items() if not k.endswith("_class") and not k.endswith("_kwargs")}
+        self._kwargs = dict()
+        self._classes = dict()
+        for container in self.CONTAINERS:
+            container_class = kwargs.get(container + "_class", torch.nn.Identity)
+            self._classes[container] = container_class
+            if container_class is torch.nn.Identity:
+                container_kwargs = dict()
+            else:
+                container_kwargs = base_kwargs.copy()
+                container_kwargs.update(kwargs.get(container + "_kwargs", dict()))
+            self._kwargs[container] = container_kwargs
+
+        self._spaces = dict()
+
         self.action_space = action_space
         self.observation_space = observation_space
 
-        encoder_kwargs.update(kwargs)
-        actor_kwargs.update(kwargs)
-        critic_kwargs.update(kwargs)
+        # Now create all of the networks, save spaces along the way.
+        output_space = self.observation_space
+        for container in self.CONTAINERS:
+            self._spaces[container] = output_space
+            reset_fn = partial(self._reset, container=container)
+            setattr(self, "reset_" + container, reset_fn)
+            reset_fn()  # Call reset to instantiate it.
+            if hasattr(getattr(self, container), "output_space"):
+                # update the output space
+                output_space = getattr(self, container).output_space
 
-        self.encoder_class, self.encoder_kwargs = encoder_class, encoder_kwargs
-        self.actor_class, self.actor_kwargs = actor_class, actor_kwargs
-        self.critic_class, self.critic_kwargs = critic_class, critic_kwargs
-
-        self.reset_encoder()
-        self.reset_actor()
-        self.reset_critic()
-
-    def reset_encoder(self, device=None):
-        encoder_class = (
-            vars(research.networks)[self.encoder_class] if isinstance(self.encoder_class, str) else self.encoder_class
-        )
-        if encoder_class is not None:
-            self._encoder = encoder_class(self.observation_space, self.action_space, **self.encoder_kwargs)
-        else:
-            self._encoder = nn.Identity()
+    def _reset(self, container: str, device: Optional[Union[str, torch.device]] = None) -> None:
+        # Fetch the cachced parameters
+        network_class = self._classes[container]
+        network_kwargs = self._kwargs[container]
+        observation_space = self._spaces[container]
+        # Refresh
+        network_class = vars(research.networks)[network_class] if isinstance(network_class, str) else network_class
+        network = network_class(observation_space, self.action_space, **network_kwargs)
         if device is not None:
-            self._encoder = self._encoder.to(device)
-
-    def reset_actor(self, device=None):
-        observation_space = (
-            self.encoder.output_space if hasattr(self.encoder, "output_space") else self.observation_space
-        )
-        actor_class = (
-            vars(research.networks)[self.actor_class] if isinstance(self.actor_class, str) else self.actor_class
-        )
-        self._actor = actor_class(observation_space, self.action_space, **self.actor_kwargs)
-        if device is not None:
-            self._actor = self._actor.to(self.device)
-
-    def reset_critic(self, device=None):
-        observation_space = (
-            self.encoder.output_space if hasattr(self.encoder, "output_space") else self.observation_space
-        )
-        critic_class = (
-            vars(research.networks)[self.critic_class] if isinstance(self.critic_class, str) else self.critic_class
-        )
-        self._critic = critic_class(observation_space, self.action_space, **self.critic_kwargs)
-        if device is not None:
-            self._critic = self._critic.to(device)
-
-    @property
-    def actor(self):
-        return self._actor
-
-    @property
-    def critic(self):
-        return self._critic
-
-    @property
-    def encoder(self):
-        return self._encoder
-
-    def predict(self, obs, **kwargs):
-        obs = self._encoder(obs)
-        if hasattr(self._actor, "predict"):
-            return self._actor.predict(obs, **kwargs)
-        else:
-            return self._actor(obs)
+            network = network.to(device)
+        setattr(self, container, network)
 
 
-class ActorCriticRewardPolicy(ActorCriticPolicy):
-    def __init__(
-        self,
-        observation_space,
-        action_space,
-        actor_class,
-        critic_class,
-        reward_class,
-        encoder_class=None,
-        actor_kwargs={},
-        critic_kwargs={},
-        encoder_kwargs={},
-        reward_kwargs={},
-        **kwargs,
-    ):
-        super().__init__(
-            observation_space,
-            action_space,
-            actor_class,
-            critic_class,
-            encoder_class=encoder_class,
-            actor_kwargs=actor_kwargs,
-            critic_kwargs=critic_kwargs,
-            encoder_kwargs=encoder_kwargs,
-            **kwargs,
-        )
-        assert encoder_class is None, "Reward policies currently do not support encoders"
+class ActorCriticPolicy(NetworkContainer):
+    CONTAINERS = ["encoder", "actor", "critic"]
 
-        reward_kwargs.update(kwargs)
-        self.reward_class, self.reward_kwargs = reward_class, reward_kwargs
-        self.reset_reward()
 
-    def reset_reward(self, device=None):
-        observation_space = (
-            self.encoder.output_space if hasattr(self.encoder, "output_space") else self.observation_space
-        )
-        reward_class = (
-            vars(research.networks)[self.reward_class] if isinstance(self.reward_class, str) else self.reward_class
-        )
-        self._reward = reward_class(observation_space, self.action_space, **self.reward_kwargs)
-        if device is not None:
-            self._reward = self._reward.to(device)
-
-    @property
-    def reward(self):
-        return self._reward
+class ActorCriticRewardPolicy(NetworkContainer):
+    CONTAINERS = ["encoder", "actor", "critic", "reward"]
