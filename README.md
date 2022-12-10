@@ -1,7 +1,10 @@
 # Few-Shot Preference Learning for Human-in-the-Loop RL
 
-## Warning -- Code under development
-This code is actively being updated, and should be aligned with the most current version of the [research-lightning repo](https://github.com/jhejna/research-lightning) within a few weeks. The exact code used for the paper can be found in the supplemental material on openreview [here](https://openreview.net/attachment?id=IKC5TfXLuW0&name=supplementary_material).
+Code for *Few-Shot Preference Learning for Human-in-the-Loop RL* CoRL 2022 by [Joey Hejna](https://jhejna.github.io) and [Dorsa Sadigh](dorsa.fyi). 
+
+This is a cleaned version of the code implemented by the authors, but that has not yet been fully benchmarked. To get the code originally used in the paper, download it [here](https://openreview.net/attachment?id=IKC5TfXLuW0&name=supplementary_material).
+
+This repository is based on [research-lightning](https://github.com/jhejna/research-lightning).
 
 ## Installation
 
@@ -17,7 +20,7 @@ You should be able to activate the development enviornment by running `. path/to
 To train a model, simply run `python scripts/train.py --config path/to/config --path path/to/save/folder`
 
 To run a sweep (files ending in `.json`), use the scripts in the `tools` folder for running locally or on SLURM. Our experiments were run on SLURM.
-Results can be viewed on tensorboard.
+Results can be viewed on tensorboard or by using the included plotting library.
 
 To launch any job via a script in the `tools` folder, use the `--entry-point <path to script>` argument to specify the path to the target script (`scripts/train.py` by default) and the `--arguments <arg1>=<value1>  <arg2>=<value2> ..  <argk>=<valuek>` to specify the arguments for the script. Multiple different jobs can be stacked. For example, `--arguments` can be provided more than once to specify different sets of arguments.
 
