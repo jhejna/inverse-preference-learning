@@ -1,6 +1,6 @@
 # Few-Shot Preference Learning for Human-in-the-Loop RL
 
-Code for *Few-Shot Preference Learning for Human-in-the-Loop RL* CoRL 2022 by [Joey Hejna](https://jhejna.github.io) and [Dorsa Sadigh](dorsa.fyi). 
+Code for *Few-Shot Preference Learning for Human-in-the-Loop RL* CoRL 2022 by [Joey Hejna](https://jhejna.github.io) and [Dorsa Sadigh](dorsa.fyi).
 
 This is a cleaned version of the code implemented by the authors, but that has not yet been fully benchmarked. To get the code originally used in the paper, download it [here](https://openreview.net/attachment?id=IKC5TfXLuW0&name=supplementary_material).
 
