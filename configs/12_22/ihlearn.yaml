@@ -12,6 +12,8 @@ alg_kwargs:
   init_feedback_size: 40
   reward_batch_size: 64
   segment_size: 25
+  subsample_size: 12
+  chi2_coeff: 0.5
   feedback_schedule: constant
   feedback_sample_multiplier: 10
 

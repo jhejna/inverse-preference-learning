@@ -1,6 +1,6 @@
 import itertools
 import os
-from typing import Any, Dict, Tuple, Type, Union
+from typing import Any, Dict, Optional, Tuple, Type, Union
 
 import gym
 import imageio
@@ -32,6 +32,8 @@ class IHLearn(Algorithm):
         feedback_sample_multiplier: float = 10,
         reward_batch_size: int = 256,
         segment_size: int = 25,
+        subsample_size: Optional[int] = 15,
+        chi2_coeff: float = 0.5,
         feedback_schedule: str = "constant",
         human_feedback: bool = False,
         num_uniform_feedback: int = 0,
@@ -53,6 +55,7 @@ class IHLearn(Algorithm):
 
         # Segment parameters
         self.segment_size = segment_size
+        self.subsample_size = subsample_size
 
         # Feedback Parameters
         self.max_feedback = max_feedback
@@ -67,6 +70,7 @@ class IHLearn(Algorithm):
         # Reward Learning Parameters
         self.reward_epochs = reward_epochs
         self.reward_batch_size = reward_batch_size
+        self.chi2_coeff = chi2_coeff
         self.reward_criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
 
     @property
@@ -114,6 +118,7 @@ class IHLearn(Algorithm):
             discount=self.dataset.discount,
             nstep=self.dataset.nstep,
             segment_size=self.segment_size,
+            subsample_size=self.subsample_size,
             capacity=self.max_feedback + 1,
         )
         self.feedback_dataloader = torch.utils.data.DataLoader(
@@ -121,7 +126,7 @@ class IHLearn(Algorithm):
         )
         self.feedback_iterator = iter(self.feedback_dataloader)
 
-    def _get_reward_logits(self, batch: Dict) -> torch.Tensor:
+    def _get_reward(self, batch: Dict) -> torch.Tensor:
         obs = torch.cat([batch["obs_1"], batch["obs_2"]], dim=0)  # (B, S+1)
         action = torch.cat([batch["action_1"], batch["action_2"]], dim=0)  # (B, S+1)
         # Compute shapes and add everything to the batch dimension
@@ -142,10 +147,9 @@ class IHLearn(Algorithm):
         # view reward again in the correct shape
         E, B_times_S = reward.shape
         assert B_times_S == B * S, "Shapes were incorrect"
-        reward = reward.view(E, B, S).sum(dim=2)
-        r1, r2 = torch.chunk(reward, 2, dim=1)
-        logits = r2 - r1
-        return logits  # Shape (E, B)
+        reward = reward.view(E, B, S)
+        r1, r2 = torch.chunk(reward, 2, dim=1)  # Should return two (E, B, S)
+        return r1, r2
 
     def _oracle_label(self, batch: Dict) -> Tuple[np.ndarray, Dict]:
         label = 1.0 * (batch["reward_1"] < batch["reward_2"])
@@ -230,7 +234,8 @@ class IHLearn(Algorithm):
             queries = self._get_queries(batch_size=int(batch_size * self.feedback_sample_multiplier))
             # Compute disagreement via the ensemble
             with torch.no_grad():
-                logits = self._get_reward_logits(to_device(to_tensor(queries), self.device))
+                r1, r2 = self._get_reward(to_device(to_tensor(queries), self.device))
+                logits = r2.sum(dim=2) - r1.sum(dim=2)  # Sum across sequence dim
                 probs = torch.sigmoid(logits)
                 probs = probs.cpu().numpy()  # Shape (E, B)
             disagreement = np.std(probs, axis=0)  # Compute along the ensemble axis
@@ -358,13 +363,17 @@ class IHLearn(Algorithm):
             feedback_batch = next(self.feedback_iterator, None)
         feedback_batch = to_device(feedback_batch, self.device)
 
-        logits = self._get_reward_logits(feedback_batch)
+        r1, r2 = self._get_reward(feedback_batch)
+        logits = r2.sum(dim=2) - r1.sum(dim=2)  # Sum across sequence dim
         labels = feedback_batch["label"].float().unsqueeze(0).expand(logits.shape[0], -1)  # Shape (E, B)
         assert labels.shape == logits.shape
         q_loss = self.reward_criterion(logits, labels).mean(dim=-1).sum(dim=0)  # Average on B, sum on E
+        chi2_loss = (
+            1 / (8 * self.chi2_coeff) * ((r1**2).mean() + (r2**2).mean())
+        )  # Turn 1/4 to 1/8 because we sum over both.
 
         self.optim["critic"].zero_grad(set_to_none=True)
-        q_loss.backward()
+        (q_loss + chi2_loss).backward()
         self.optim["critic"].step()
 
         # Now update the actor.
@@ -397,10 +406,12 @@ class IHLearn(Algorithm):
         all_metrics.update(
             dict(
                 q_loss=q_loss.item(),
+                chi2_loss=chi2_loss.item(),
                 actor_loss=actor_loss.item(),
                 entropy=entropy.item(),
                 alpha_loss=alpha_loss.item(),
                 alpha=self.alpha.detach().item(),
+                adv=r1.mean().item(),
             )
         )
 

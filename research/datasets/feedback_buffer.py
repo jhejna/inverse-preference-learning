@@ -1,6 +1,6 @@
 import math
 import os
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import gym
 import numpy as np
@@ -19,6 +19,7 @@ class FeedbackLabelDataset(torch.utils.data.IterableDataset):
         discount: float = 0.99,
         nstep: int = 1,
         segment_size: int = 20,
+        subsample_size: Optional[int] = None,
         batch_size: int = 64,
         capacity: int = 100000,
     ):
@@ -27,6 +28,7 @@ class FeedbackLabelDataset(torch.utils.data.IterableDataset):
         self.nstep = nstep
         self.batch_size = batch_size
         self.segment_size = segment_size
+        self.subsample_size = subsample_size
         self._capacity = capacity
         self._size = 0
         self._idx = 0
@@ -58,11 +60,20 @@ class FeedbackLabelDataset(torch.utils.data.IterableDataset):
             self._size = min(self._size + num_to_add, self._capacity)
 
     def _sample(self, idxs):
-        obs_1 = self.obs_1_buffer[idxs]
-        obs_2 = self.obs_2_buffer[idxs]
-        action_1 = self.action_1_buffer[idxs]
-        action_2 = self.action_2_buffer[idxs]
-        label = self.label_buffer[idxs]
+        if self.subsample_size is None:
+            obs_1 = self.obs_1_buffer[idxs]
+            obs_2 = self.obs_2_buffer[idxs]
+            action_1 = self.action_1_buffer[idxs]
+            action_2 = self.action_2_buffer[idxs]
+            label = self.label_buffer[idxs]
+        else:
+            start = np.random.randint(0, self.segment_size - self.subsample_size)
+            end = start + self.subsample_size
+            obs_1 = self.obs_1_buffer[idxs, start:end]
+            obs_2 = self.obs_2_buffer[idxs, start:end]
+            action_1 = self.action_1_buffer[idxs, start:end]
+            action_2 = self.action_2_buffer[idxs, start:end]
+            label = self.label_buffer[idxs]
         # Note: we don't need to sample the states for this
         return dict(obs_1=obs_1, obs_2=obs_2, action_1=action_1, action_2=action_2, label=label)
 
