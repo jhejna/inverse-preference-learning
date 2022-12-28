@@ -1,0 +1,11 @@
+{
+    "base": "configs/12_22/ihlearn.yaml",
+    "paired_keys": [
+        ["env", "alg_kwargs.max_feedback", "alg_kwargs.init_feedback_size", "alg_kwargs.reward_freq"]
+    ],
+    "env": ["mw_door-close-v2", "mw_button-press-v2", "mw_drawer-open-v2"],
+    "alg_kwargs.init_feedback_size": [40, 100, 200],
+    "alg_kwargs.max_feedback": [1000, 2500, 5000],
+    "alg_kwargs.reward_freq": [5000, 5000, 5000],
+    "seed": [1, 2]
+}

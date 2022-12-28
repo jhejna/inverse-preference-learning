@@ -1,7 +1,7 @@
 # Make sure we have the conda environment set up.
-CONDA_PATH=~/miniconda3/bin/activate
+CONDA_PATH=/iliad/u/jhejna/miniconda3/bin/activate
 ENV_NAME=few-shot-pref-rl
-REPO_PATH=.
+REPO_PATH=/iliad/u/jhejna/ih-learn
 USE_MUJOCO_PY=true
 WANDB_API_KEY="" # If you want to use wandb, set this to your API key.
 
