@@ -65,15 +65,15 @@ class EvalMetricTracker(object):
         return metrics
 
 
-def eval_multiple(env, model, path: str, eval_fns: List[str], eval_kwargs: List[Dict]):
+def eval_multiple(env, model, path: str, step: int, eval_fns: List[str], eval_kwargs: List[Dict]):
     all_metrics = dict()
     for eval_fn, eval_kwarg in zip(eval_fns, eval_kwargs):
-        metrics = locals()[eval_fn](env, model, path, **eval_kwarg)
+        metrics = locals()[eval_fn](env, model, path, step, **eval_kwarg)
         all_metrics.update(metrics)
     return all_metrics
 
 
-def eval_policy(env: gym.Env, model, path: str, num_ep: int = 10) -> Dict:
+def eval_policy(env: gym.Env, model, path: str, step: int, num_ep: int = 10) -> Dict:
     metric_tracker = EvalMetricTracker()
 
     for _ in range(num_ep):

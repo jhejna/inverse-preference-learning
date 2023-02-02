@@ -88,43 +88,43 @@ class Config(BareConfig):
         # Define necesary fields
 
         # Env Args
-        self["env"] = None
-        self["env_kwargs"] = {}
+        self.config["env"] = None
+        self.config["env_kwargs"] = {}
 
-        self["eval_env"] = None
-        self["eval_env_kwargs"] = {}
+        self.config["eval_env"] = None
+        self.config["eval_env_kwargs"] = {}
 
-        self["wrapper"] = None
-        self["wrapper_kwargs"] = {}
+        self.config["wrapper"] = None
+        self.config["wrapper_kwargs"] = {}
 
         # Algorithm Args
-        self["alg"] = None
-        self["alg_kwargs"] = {}
+        self.config["alg"] = None
+        self.config["alg_kwargs"] = {}
 
         # Dataset Args
-        self["dataset"] = None
-        self["dataset_kwargs"] = {}
-        self["validation_dataset_kwargs"] = None
+        self.config["dataset"] = None
+        self.config["dataset_kwargs"] = {}
+        self.config["validation_dataset_kwargs"] = None
 
         # Processor arguments
-        self["processor"] = None
-        self["processor_kwargs"] = {}
+        self.config["processor"] = None
+        self.config["processor_kwargs"] = {}
 
         # Optimizer Args
-        self["optim"] = None
-        self["optim_kwargs"] = {}
+        self.config["optim"] = None
+        self.config["optim_kwargs"] = {}
 
         # Network Args
-        self["network"] = None
-        self["network_kwargs"] = {}
+        self.config["network"] = None
+        self.config["network_kwargs"] = {}
 
-        self["checkpoint"] = None
+        self.config["checkpoint"] = None
 
         # Schedule args
-        self["schedule"] = None
-        self["schedule_kwargs"] = {}
+        self.config["schedule"] = None
+        self.config["schedule_kwargs"] = {}
 
-        self["trainer_kwargs"] = {}
+        self.config["trainer_kwargs"] = {}
 
     @property
     def parsed(self):
@@ -142,6 +142,7 @@ class Config(BareConfig):
     def parse(self) -> "Config":
         config = self.copy()
         Config._parse_helper(config.config)
+        config._parsed = True
         return config
 
     def flatten(self) -> Dict:
@@ -150,7 +151,9 @@ class Config(BareConfig):
 
     def __setitem__(self, key: str, value: Any):
         if key not in self.config:
-            raise ValueError("Attempting to set an out of structure key. Configs must follow the format in config.py")
+            raise ValueError(
+                "Attempting to set an out of structure key: " + key + ". Configs must follow the format in config.py"
+            )
         super().__setitem(key, value)
 
     def get_train_env(self):
@@ -184,8 +187,8 @@ class Config(BareConfig):
 
         # Fetch the schedulers. If we don't have an optim dict, change it to one.
         if not isinstance(self["schedule"], dict):
-            schedulers = dict(DEFAULT_NETWORK_KEY=self["schedule"])
-            schedulers_kwargs = dict(DEFAULT_NETWORK_KEY=self["schedule_kwargs"])
+            schedulers = {DEFAULT_NETWORK_KEY: self["schedule"]}
+            schedulers_kwargs = {DEFAULT_NETWORK_KEY: self["schedule_kwargs"]}
         else:
             schedulers = self["schedule"]
             schedulers_kwargs = self["schedule_kwargs"]

@@ -83,8 +83,10 @@ class Algorithm(ABC):
         # Check to see if the value is a module etc.
         if name in self._save_keys:
             pass
-        elif isinstance(value, (torch.nn.Module, torch.nn.Parameter)):
+        elif isinstance(value, torch.nn.Parameter):
             self._save_keys.add(name)
+        elif isinstance(value, torch.nn.Module) and sum(p.numel() for p in value.parameters()) > 0:
+            self._save_keys.add(name)  # store if we have a module with more than zero parameters.
         return super().__setattr__(name, value)
 
     @property
@@ -116,6 +118,8 @@ class Algorithm(ABC):
                     attr.compile(**kwargs)
                 else:
                     setattr(self, k, torch.compile(attr, **kwargs))
+        # indicate that we have compiled the models.
+        self._compiled = True
 
     def train(self) -> None:
         for k in self._save_keys:

@@ -80,6 +80,7 @@ class Trainer(object):
         train_dataloader_kwargs: Dict = {},
         validation_dataloader_kwargs: Dict = {},
     ) -> None:
+        self._model = None
         self.eval_env = eval_env
         self.seed = seed
 
@@ -119,13 +120,13 @@ class Trainer(object):
         return self._model
 
     @property
-    def train_dataloader(self) -> torch.utils.data.Dataloader:
+    def train_dataloader(self) -> torch.utils.data.DataLoader:
         if not hasattr(self.model, "dataset"):
-            self.self.model.setup_train_dataset()
-        if self.self.model.dataset is None:
+            self.model.setup_train_dataset()
+        if self.model.dataset is None:
             return None
         if self._train_dataloader is None:
-            shuffle = not isinstance(self.self.model.dataset, torch.utils.data.IterableDataset)
+            shuffle = not isinstance(self.model.dataset, torch.utils.data.IterableDataset)
             pin_memory = self.model.device.type == "cuda"
             self._train_dataloader = torch.utils.data.DataLoader(
                 self.model.dataset,
@@ -137,8 +138,8 @@ class Trainer(object):
         return self._train_dataloader
 
     @property
-    def validation_dataloader(self, model: Algorithm) -> torch.utils.data.Dataloader:
-        if not hasattr(model, "validation_dataset"):
+    def validation_dataloader(self) -> torch.utils.data.DataLoader:
+        if not hasattr(self.model, "validation_dataset"):
             self.model.setup_validation_dataset()
         if self.model.validation_dataset is None:
             return None
@@ -155,14 +156,15 @@ class Trainer(object):
     def check_compilation(self):
         # If the model has not been compiled, compile it.
         if not self.model.compiled and self.torch_compile:
-            self.model.compile(self.torch_compile_kwargs)
+            self.model.compile(**self.torch_compile_kwargs)
             return True
         else:
             return False
 
     def train(self, path: str):
         # Prepare the model for training by initializing the optimizers and the schedulers
-        self.model.seed(self.seed)
+        if self.seed is not None:
+            self.model.seed(self.seed)
         self.model.setup_optimizers()
         self.check_compilation()
         self.model.setup_schedulers()
@@ -173,7 +175,7 @@ class Trainer(object):
         if os.path.exists(path):
             # If so, we can finetune from that initial checkpoint. When we do this we should load strictly.
             # If we can't load it, we should immediately throw an error.
-            metadata = self.model.load(os.path.join(path, "final_self.model.pt"), strict=True)
+            metadata = self.model.load(os.path.join(path, "final_model.pt"), strict=True)
             current_step = metadata["current_step"]
         else:
             os.makedirs(path, exist_ok=False)
@@ -218,11 +220,12 @@ class Trainer(object):
             0 if self.benchmark else -self.eval_freq
         )  # Ensure that we log the first step, except if we are benchmarking.
 
-        start_time = time.time()
-        current_time = start_time
-        profile = False
+        profile = True if self.profile_freq > 0 else False  # must profile to get all keys for csv log
         steps, epochs = 0, 0
         self.model.train()
+
+        start_time = time.time()
+        current_time = start_time
 
         while current_step <= self.total_steps:
             for batch in self.train_dataloader:
@@ -264,23 +267,26 @@ class Trainer(object):
                     last_train_log = current_step
 
                 if (current_step - last_validation_log) >= self.eval_freq:
+                    print("Validation", steps)
                     self.model.eval()
                     current_valid_metric = None
                     model_metadata = dict(current_step=current_step, epochs=epochs, steps=steps)
 
                     # Run and time validation step
                     current_time = time.time()
-                    validation_metrics = self.validate()
+                    validation_metrics = self.validate(path, current_step)
                     logger.record("time/validation", time.time() - current_time)
                     if self.loss_metric in validation_metrics:
                         current_valid_metric = validation_metrics[self.loss_metric]
+                    log_from_dict(logger, validation_metrics, "validation")
 
                     # Run and time eval step
                     current_time = time.time()
-                    eval_metrics = self.evaluate()
+                    eval_metrics = self.evaluate(path, current_step)
                     logger.record("time/eval", time.time() - current_time)
                     if self.loss_metric in eval_metrics:
                         current_valid_metric = eval_metrics[self.loss_metric]
+                    log_from_dict(logger, eval_metrics, "eval")
 
                     # Determine if we have a new best self.model.
                     if current_valid_metric is None:
@@ -298,6 +304,7 @@ class Trainer(object):
 
                     # Put the model back in train mode.
                     self.model.train()
+                    last_validation_log = current_step
 
                 steps += 1  # Increment the number of steps we have taken
                 # Compute the new current step
@@ -332,7 +339,7 @@ class Trainer(object):
             validation_step = log_wrapper(self.model.validation_step, validation_metric_lists)
             for batch in self.validation_dataloader:
                 batch = self.model.format_batch(batch)
-                validation_step(validation_metric_lists)
+                validation_step(batch)
                 eval_steps += 1
                 if eval_steps == self.max_eval_steps:
                     break
@@ -341,11 +348,11 @@ class Trainer(object):
         validation_metrics.update(self.model.validation_extras(path, step))
         return validation_metrics
 
-    def evaluate(self, model: Algorithm, path: str):
+    def evaluate(self, path: str, step: int):
         assert not self.model.training
         self.check_compilation()
         eval_fn = None if self.eval_fn is None else vars(evaluate)[self.eval_fn]
         if eval_fn is None:
             return dict()
-        eval_metrics = eval_fn(self.eval_env, model, path, **self.eval_kwargs)
+        eval_metrics = eval_fn(self.eval_env, self.model, path, **self.eval_kwargs)
         return eval_metrics
