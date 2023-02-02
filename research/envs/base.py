@@ -1,7 +1,7 @@
 import gym
 import numpy as np
 
-# unused imports for todo on parallel envs
+# unused imports for TODO on parallel envs
 # import cloudpickle
 # import multiprocessing as mp
 # from abc import ABC, abstractmethod
@@ -54,13 +54,21 @@ class Empty(gym.Env):
         observation_high=None,
         observation_shape=None,
         observation_dtype=np.float32,
+        observation_space=None,
         action_low=None,
         action_high=None,
         action_shape=None,
         action_dtype=np.float32,
+        action_space=None,
     ):
-        self.observation_space = _get_space(observation_low, observation_high, observation_shape, observation_dtype)
-        self.action_space = _get_space(action_low, action_high, action_shape, action_dtype)
+        if observation_space is not None:
+            self.observation_space = observation_space
+        else:
+            self.observation_space = _get_space(observation_low, observation_high, observation_shape, observation_dtype)
+        if action_space is not None:
+            self.action_space = action_space
+        else:
+            self.action_space = _get_space(action_low, action_high, action_shape, action_dtype)
 
     def step(self, action):
         raise NotImplementedError("Empty Env does not have step")

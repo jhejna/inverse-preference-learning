@@ -44,6 +44,22 @@ def to_np(batch: Any) -> Any:
     return batch
 
 
+def remove_float64(batch: Any):
+    if isinstance(batch, dict):
+        batch = {k: remove_float64(v) for k, v in batch.items()}
+    elif isinstance(batch, list) or isinstance(batch, tuple):
+        batch = [remove_float64(v) for v in batch]
+    elif isinstance(batch, np.ndarray):
+        if batch.dtype == np.float64:
+            batch = batch.astype(np.float32)
+    elif isinstance(batch, torch.Tensor):
+        if batch.dtype == torch.double:
+            batch = batch.float()
+    else:
+        raise ValueError("Unsupported type passed to `remove_float64`")
+    return batch
+
+
 def unsqueeze(batch: Any, dim: int) -> Any:
     if isinstance(batch, dict):
         batch = {k: unsqueeze(v, dim) for k, v in batch.items()}
@@ -199,16 +215,16 @@ def _flatten_dict_helper(flat_dict: Dict, value: Any, prefix: str, separator: st
         flat_dict[prefix[1:]] = value
 
 
-def flatten_dict(d: Dict) -> Dict:
+def flatten_dict(d: Dict, separator: str = ".") -> Dict:
     flat_dict = dict()
-    _flatten_dict_helper(flat_dict, d, "")
+    _flatten_dict_helper(flat_dict, d, "", separator=separator)
     return flat_dict
 
 
-def nest_dict(d: Dict) -> Dict:
+def nest_dict(d: Dict, separator: str = ".") -> Dict:
     nested_d = dict()
     for key in d.keys():
-        key_parts = key.split(".")
+        key_parts = key.split(separator)
         current_d = nested_d
         while len(key_parts) > 1:
             if key_parts[0] not in current_d:
@@ -219,7 +235,7 @@ def nest_dict(d: Dict) -> Dict:
     return nested_d
 
 
-def fetch_from_dict(d: Dict, keys: Union[str, List, Tuple]) -> List[Any]:
+def fetch_from_dict(d: Dict, keys: Union[str, List, Tuple], separator=".") -> List[Any]:
     """
     inputs:
         d: a nested dictionary datastrucutre
@@ -229,7 +245,7 @@ def fetch_from_dict(d: Dict, keys: Union[str, List, Tuple]) -> List[Any]:
     if not isinstance(keys, list) and not isinstance(keys, tuple):
         keys = [keys]
     for key in keys:
-        key_parts = key.split(".")
+        key_parts = key.split(separator)
         current_dict = d
         while len(key_parts) > 1:
             current_dict = current_dict[key_parts[0]]

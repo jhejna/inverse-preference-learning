@@ -1,6 +1,6 @@
 name: research
 channels:
-  - pytorch
+  - pytorch-nightly
   - nvidia
   - default
 dependencies:
@@ -17,11 +17,11 @@ dependencies:
   - cudatoolkit=11.3
   - torchvision
   - torchtext
+  - torchaudio
 
   # NP Family
   - numpy
   - scipy
-  - networkx
   - scikit-image
 
   # IO

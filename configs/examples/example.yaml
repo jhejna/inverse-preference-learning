@@ -48,8 +48,18 @@ schedule_kwargs:
 train_kwargs: # Arguments given to Algorithm.train
   total_steps: 10000 # The total number of steps to train
   log_freq: 25 # How often to log values
+  profile_freq: 10 # How often to time different componetns
   eval_freq: 500 # How often to run evals
-  max_eval_steps: 100 # Maximum number of steps from the validatoin dataset, if included
-  eval_fn: null
+  max_eval_steps: 100 # Maximum number of steps from the validation dataset, if included
   loss_metric: loss # The validation metric that determines when to save the "best_checkpoint"
-  workers: 2 # Number of dataloader workers.
+  eval_fn: eval_policy # evaluation function to run
+  eval_kwargs:
+    num_ep: 10 # Evaluation kwargs
+  train_dataloader_kwargs:
+    workers: 2
+  validation_dataloader_kwargs:
+    workers: 0
+  benchmark: False # whether or not to enable torch.cuddn.benchmark
+  torch_compile: True # wether or not to use torch compile
+  torch_compile_kwargs:
+    mode: null # set torch compile key word args.

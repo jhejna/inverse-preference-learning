@@ -1,5 +1,5 @@
 import collections
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import gym
 import numpy as np
@@ -7,7 +7,7 @@ import torch
 
 from . import utils
 
-MAX_METRICS = {"success", "is_success"}
+MAX_METRICS = {"success", "is_success", "completions"}
 LAST_METRICS = {"goal_distance"}
 MEAN_METRICS = {}
 
@@ -65,7 +65,15 @@ class EvalMetricTracker(object):
         return metrics
 
 
-def eval_policy(env: gym.Env, model, num_ep: int = 10) -> Dict:
+def eval_multiple(env, model, path: str, eval_fns: List[str], eval_kwargs: List[Dict]):
+    all_metrics = dict()
+    for eval_fn, eval_kwarg in zip(eval_fns, eval_kwargs):
+        metrics = locals()[eval_fn](env, model, path, **eval_kwarg)
+        all_metrics.update(metrics)
+    return all_metrics
+
+
+def eval_policy(env: gym.Env, model, path: str, num_ep: int = 10) -> Dict:
     metric_tracker = EvalMetricTracker()
 
     for _ in range(num_ep):
@@ -76,6 +84,8 @@ def eval_policy(env: gym.Env, model, num_ep: int = 10) -> Dict:
         metric_tracker.reset()
         while not done:
             batch = dict(obs=obs)
+            if hasattr(env, "_max_episode_steps"):
+                batch["horizon"] = env._max_episode_steps - ep_length
             with torch.no_grad():
                 action = model.predict(batch)
             obs, reward, done, info = env.step(action)
@@ -85,5 +95,4 @@ def eval_policy(env: gym.Env, model, num_ep: int = 10) -> Dict:
 
         if hasattr(env, "get_normalized_score"):
             metric_tracker.add("score", env.get_normalized_score(ep_reward))
-
     return metric_tracker.export()
