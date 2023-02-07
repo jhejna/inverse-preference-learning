@@ -62,7 +62,7 @@ class Algorithm(ABC):
         # Save values for schedulers, which will be lazily initialized later
         self.schedulers = {}
         self.schedulers_class = schedulers_class
-        self.schedulerss_kwargs = schedulers_kwargs
+        self.schedulers_kwargs = schedulers_kwargs
 
         # Save values for datasets, which will be lazily initialized later
         self.dataset_class = dataset_class
@@ -81,7 +81,7 @@ class Algorithm(ABC):
 
     def __setattr__(self, name: str, value: Any) -> None:
         # Check to see if the value is a module etc.
-        if name in self._save_keys:
+        if hasattr(self, "_save_keys") and name in self._save_keys:
             pass
         elif isinstance(value, torch.nn.Parameter):
             self._save_keys.add(name)
@@ -273,8 +273,7 @@ class Algorithm(ABC):
             elif k not in checkpoint["optim"]:
                 print("[research] Warning: Checkpoint did not have optimizer key", k)
                 continue
-            # Note: preivously this was surrounded by a try catch, but I think we can fix it with `strict`
-            self.optim[k].load_state_dict(checkpoint["optim"][k], strict=strict)
+            self.optim[k].load_state_dict(checkpoint["optim"][k])
         if "optim" in checkpoint:
             remaining_checkpoint_keys.remove("optim")
 
@@ -318,12 +317,11 @@ class Algorithm(ABC):
         """
         return {}
 
-    @abstractmethod
     def validation_step(self, batch: Any) -> Dict:
         """
         perform a validation step. Should return a dict of loggable values.
         """
-        return {}
+        raise NotImplementedError
 
     def train_extras(self, step: int, total_steps: int) -> Dict:
         """
@@ -356,7 +354,7 @@ class Algorithm(ABC):
         if not is_batched:
             # Unsqeeuze everything
             batch = utils.unsqueeze(batch, 0)
-        batch = self._format_batch(batch)
+        batch = self.format_batch(batch)
         pred = self._predict(batch, **kwargs)
         if not is_batched:
             pred = utils.get_from_batch(pred, 0)

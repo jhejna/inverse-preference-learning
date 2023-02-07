@@ -178,9 +178,9 @@ class Config(BareConfig):
         assert self.parsed
         # Return the evalutaion environment.
         if self["eval_env"] is None:
-            return None
+            return get_env(self["env"], self["env_kwargs"], self["wrapper"], self["wrapper_kwargs"])
         else:
-            get_env(self["eval_env"], self["eval_env_kwargs"], self["wrapper"], self["wrapper_kwargs"])
+            return get_env(self["eval_env"], self["eval_env_kwargs"], self["wrapper"], self["wrapper_kwargs"])
 
     def get_schedules(self):
         assert self.parsed
@@ -223,6 +223,8 @@ class Config(BareConfig):
             processor_kwargs=self["processor_kwargs"],
             optim_class=optim_class,
             optim_kwargs=self["optim_kwargs"],
+            schedulers_class=schedulers_class,
+            schedulers_kwargs=schedulers_kwargs,
             checkpoint=self["checkpoint"],
             device=device,
             **self["alg_kwargs"],
@@ -232,7 +234,10 @@ class Config(BareConfig):
     def get_trainer(self):
         assert self.parsed
         # Returns a Trainer Object that can be used to train a model
-        if self["trainer_kwargs"].get("eval_fn", None) is None or self["trainer_kwargs"].get("subproc_eval") == True:
+        if (
+            self["trainer_kwargs"].get("eval_fn", None) is None
+            or self["trainer_kwargs"].get("subproc_eval", False) == True
+        ):
             eval_env = None
         else:
             eval_env = self.get_eval_env()

@@ -25,7 +25,7 @@ def plot_run(
     name: str,
     ax=None,
     x_key: str = "step",
-    y_keys: List[str] = ["eval/loss"],
+    y_keys: List[str] = ["validation/loss"],
     window_size: int = 1,
     max_x_value: Optional[int] = None,
     **kwargs,

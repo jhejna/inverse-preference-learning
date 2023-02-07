@@ -176,10 +176,11 @@ class Trainer(object):
             # If so, we can finetune from that initial checkpoint. When we do this we should load strictly.
             # If we can't load it, we should immediately throw an error.
             metadata = self.model.load(os.path.join(path, "final_model.pt"), strict=True)
-            current_step = metadata["current_step"]
+            current_step, steps, epochs = metadata["current_step"], metadata["steps"], metadata["epochs"]
+            # Try to load the xaxis value if we need to.
         else:
             os.makedirs(path, exist_ok=False)
-            current_step = 0
+            current_step, steps, epochs = 0, 0, 0
 
         # Setup benchmarking.
         if self.benchmark:
@@ -221,7 +222,6 @@ class Trainer(object):
         )  # Ensure that we log the first step, except if we are benchmarking.
 
         profile = True if self.profile_freq > 0 else False  # must profile to get all keys for csv log
-        steps, epochs = 0, 0
         self.model.train()
 
         start_time = time.time()
@@ -246,6 +246,18 @@ class Trainer(object):
                 for scheduler in self.model.schedulers.values():
                     scheduler.step()
 
+                steps += 1
+                if self.x_axis == "steps":
+                    new_current_step = steps + 1
+                elif self.x_axis == "epoch":
+                    new_current_step = epochs
+                elif self.x_axis in train_metric_lists:
+                    new_current_step = train_metric_lists[self.x_axis][-1]  # Get the most recent value
+                elif self.x_axis in extras_metric_lists:
+                    new_current_step = extras_metric_lists[self.x_axis][-1]  # Get the most recent value
+                else:
+                    raise ValueError("Could not find train value for x_axis " + str(self.x_axis))
+
                 # Now determine if we should dump the logs
                 if (current_step - last_train_log) >= self.log_freq:
                     # Record timing metrics
@@ -261,13 +273,13 @@ class Trainer(object):
                     for name, scheduler in self.model.schedulers.items():
                         logger.record("lr/" + name, scheduler.get_last_lr()[0])
                     # Record training metrics
+                    log_from_dict(logger, extras_metric_lists, "train_extras")
                     log_from_dict(logger, train_metric_lists, "train")
                     logger.dump(step=current_step)
                     # Update the last time we logged.
                     last_train_log = current_step
 
                 if (current_step - last_validation_log) >= self.eval_freq:
-                    print("Validation", steps)
                     self.model.eval()
                     current_valid_metric = None
                     model_metadata = dict(current_step=current_step, epochs=epochs, steps=steps)
@@ -306,19 +318,7 @@ class Trainer(object):
                     self.model.train()
                     last_validation_log = current_step
 
-                steps += 1  # Increment the number of steps we have taken
-                # Compute the new current step
-                if self.x_axis == "steps":
-                    current_step = steps
-                elif self.x_axis == "epoch":
-                    current_step = epochs
-                elif self.x_axis in train_metric_lists:
-                    current_step = train_metric_lists[self.x_axis][-1]  # Get the most recent value
-                elif self.x_axis in extras_metric_lists:
-                    current_step = extras_metric_lists[self.x_axis][-1]  # Get the most recent value
-                else:
-                    raise ValueError("Could not find train value for x_axis " + str(self.x_axis))
-
+                current_step = new_current_step  # Update the current step
                 if current_step >= self.total_steps:
                     break  # We need to break in the middle of an epoch.
 
@@ -354,5 +354,5 @@ class Trainer(object):
         eval_fn = None if self.eval_fn is None else vars(evaluate)[self.eval_fn]
         if eval_fn is None:
             return dict()
-        eval_metrics = eval_fn(self.eval_env, self.model, path, **self.eval_kwargs)
+        eval_metrics = eval_fn(self.eval_env, self.model, path, step, **self.eval_kwargs)
         return eval_metrics

@@ -128,14 +128,14 @@ def get_scripts(args: argparse.Namespace) -> List[Tuple[str, Dict]]:
 
 class Config(object):
     """
-    A lightweight copy of the config file with only basic IO capabilities.
-    This is used so that we don't load in the full package on slurm head nodes.
-    This is a bit of a work around for now, but it saves a lot of time.
+    This is a bare copy of the config that does not require importing any of the research packages.
+    This file has been copied out for use in the tools/trainer etc. to avoid loading heavy packages
+    when the goal is just to create configs. It defines no structure.
     """
 
     def __init__(self):
         # Define the necesary structure for a complete training configuration
-        self.parsed = False
+        self._parsed = False
         self.config = dict()
 
     def save(self, path: str) -> None:
@@ -156,6 +156,9 @@ class Config(object):
         config = cls()
         config.update(data)
         return config
+
+    def get(self, key: str, default: Optional[Any] = None):
+        return self.config.get(key, default)
 
     def __getitem__(self, key: str) -> Any:
         return self.config[key]
