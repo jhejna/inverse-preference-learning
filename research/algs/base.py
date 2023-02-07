@@ -148,6 +148,20 @@ class Algorithm(ABC):
                     _num_params += attr.numel()
         return _num_params
 
+    @property
+    def nbytes(self):
+        # Returns the size of all the parameters in bytes
+        _bytes = 0
+        for k in self.save_keys:
+            attr = getattr(self, k)
+            if hasattr(attr, "parameters"):
+                for p in attr.parameters():
+                    _bytes += p.nelement() * p.element_size()
+            if hasattr(attr, "buffers"):
+                for b in attr.buffers():
+                    _bytes += b.nelement() * b.element_size()
+        return _bytes
+
     def seed(self, seed: int) -> None:
         torch.manual_seed(seed)
         np.random.seed(seed)
