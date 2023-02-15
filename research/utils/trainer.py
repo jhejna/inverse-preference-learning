@@ -173,14 +173,13 @@ class Trainer(object):
         print("[research] Estimated size: {:.2f} GB".format(self.model.nbytes / 1024**3))
 
         # First, we should detect if the path already contains a model and a checkpoint
-        if os.path.exists(path):
+        if os.path.exists(os.path.join(path, "final_model.pt")):
             # If so, we can finetune from that initial checkpoint. When we do this we should load strictly.
             # If we can't load it, we should immediately throw an error.
             metadata = self.model.load(os.path.join(path, "final_model.pt"), strict=True)
             current_step, steps, epochs = metadata["current_step"], metadata["steps"], metadata["epochs"]
             # Try to load the xaxis value if we need to.
         else:
-            os.makedirs(path, exist_ok=False)
             current_step, steps, epochs = 0, 0, 0
 
         # Setup benchmarking.

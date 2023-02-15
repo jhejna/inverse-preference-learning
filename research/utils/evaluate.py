@@ -1,7 +1,9 @@
 import collections
+import os
 from typing import Any, Dict, List
 
 import gym
+import imageio
 import numpy as np
 import torch
 
@@ -9,7 +11,7 @@ from . import utils
 
 MAX_METRICS = {"success", "is_success", "completions"}
 LAST_METRICS = {"goal_distance"}
-MEAN_METRICS = {}
+MEAN_METRICS = {"discount"}
 
 
 class EvalMetricTracker(object):
@@ -73,14 +75,31 @@ def eval_multiple(env, model, path: str, step: int, eval_fns: List[str], eval_kw
     return all_metrics
 
 
-def eval_policy(env: gym.Env, model, path: str, step: int, num_ep: int = 10) -> Dict:
+def eval_policy(
+    env: gym.Env,
+    model,
+    path: str,
+    step: int,
+    num_ep: int = 10,
+    num_gifs: int = 0,
+    width=200,
+    height=200,
+    every_n_frames: int = 2,
+    terminate_on_success=False,
+) -> Dict:
     metric_tracker = EvalMetricTracker()
+    assert num_gifs <= num_ep, "Cannot save more gifs than eval ep."
 
-    for _ in range(num_ep):
+    for i in range(num_ep):
         # Reset Metrics
         done = False
         ep_length, ep_reward = 0, 0
+        frames = []
+        save_gif = i < num_gifs
+        render_kwargs = dict(mode="rgb_array", width=width, height=height) if save_gif else dict()
         obs = env.reset()
+        if save_gif:
+            frames.append(env.render(**render_kwargs))
         metric_tracker.reset()
         while not done:
             batch = dict(obs=obs)
@@ -92,7 +111,15 @@ def eval_policy(env: gym.Env, model, path: str, step: int, num_ep: int = 10) -> 
             ep_reward += reward
             metric_tracker.step(reward, info)
             ep_length += 1
-
+            if save_gif and ep_length % every_n_frames == 0:
+                frames.append(env.render(**render_kwargs))
+            if terminate_on_success and (info.get("success", False) or info.get("is_success", False)):
+                done = True
         if hasattr(env, "get_normalized_score"):
             metric_tracker.add("score", env.get_normalized_score(ep_reward))
+
+        if save_gif:
+            gif_name = "vis-{}_ep-{}.gif".format(step, i)
+            imageio.mimsave(os.path.join(path, gif_name), frames)
+
     return metric_tracker.export()

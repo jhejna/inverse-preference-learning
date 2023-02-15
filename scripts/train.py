@@ -28,7 +28,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     config = Config.load(args.config)
+    os.makedirs(args.path, exist_ok=True)
     try_wandb_setup(args.path, config)
+    config.save(args.path)  # Save the config
     config = config.parse()
     model = config.get_model(device=args.device)
     trainer = config.get_trainer()

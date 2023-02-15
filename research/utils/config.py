@@ -154,7 +154,7 @@ class Config(BareConfig):
             raise ValueError(
                 "Attempting to set an out of structure key: " + key + ". Configs must follow the format in config.py"
             )
-        super().__setitem(key, value)
+        super().__setitem__(key, value)
 
     def get_train_env(self):
         assert self.parsed
