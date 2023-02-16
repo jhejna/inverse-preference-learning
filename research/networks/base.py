@@ -49,7 +49,6 @@ class ModuleContainer(torch.nn.Module):
 
     @classmethod
     def create_subset(cls, containers):
-        print(cls.CONTAINERS)
         assert all([container in cls.CONTAINERS for container in containers])
         name = "".join([container.capitalize() for container in containers]) + "Subset"
         return type(name, (ModuleContainer,), {"CONTAINERS": containers})
