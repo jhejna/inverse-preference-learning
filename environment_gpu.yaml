@@ -14,7 +14,7 @@ dependencies:
 
   # pytorch
   - pytorch
-  - cudatoolkit=11.3
+  - pytorch-cuda=11.7
   - torchvision
   - torchtext
   - torchaudio
