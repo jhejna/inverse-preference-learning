@@ -1,4 +1,4 @@
-name: few-shot-pref-rl
+name: ih-learn
 channels:
   - pytorch-nightly
   - default
@@ -45,9 +45,6 @@ dependencies:
 
   - pip
   - pip:
-      - gym==0.23.1
-      - dm_control
+      - gym<=0.24.1
       - mujoco-py<2.2,>=2.1
       - git+https://github.com/rlworkgroup/metaworld.git@master#egg=metaworld
-      - opencv-python
-      - opencv-contrib-python

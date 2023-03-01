@@ -1,6 +1,5 @@
 import math
-import os
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 import gym
 import numpy as np
@@ -86,59 +85,3 @@ class FeedbackLabelDataset(torch.utils.data.IterableDataset):
         for i in range(math.ceil(len(self) / self.batch_size)):  # Need to use ceil to get all data points.
             cur_idxs = idxs[i * self.batch_size : min((i + 1) * self.batch_size, len(self))]
             yield self._sample(cur_idxs)
-
-
-class MultiTaskOracleFeedbackDataset(torch.utils.data.IterableDataset):
-    def __init__(
-        self,
-        observation_space: gym.Space,
-        action_space: gym.Space,
-        paths: List[str],
-        capacity: int = 10000,
-        segment_size: int = 25,
-        **kwargs,
-    ):
-        super().__init__()
-        if isinstance(paths, str):
-            paths = [os.path.join(paths, p) for p in os.listdir(paths)]
-
-        # Get the basenames of the directories to use as task names
-        task_names = [os.path.basename(p) for p in paths]
-        self._task_to_id = {task: index for index, task in enumerate(task_names)}
-        self._id_to_task = {v: k for k, v in self._task_to_id.items()}
-        self._datasets = {}
-        for task, p in zip(task_names, paths):
-            replay_buffer = ReplayBuffer(observation_space, action_space, path=p, distributed=False, **kwargs)
-            dataset = FeedbackLabelDataset(
-                observation_space, action_space, capacity=capacity, segment_size=segment_size, **kwargs
-            )
-            # Sample segments from the replay buffer like in PEBBLE
-            batch = replay_buffer.sample(batch_size=2 * capacity, stack=segment_size, pad=0)
-            # Compute the discounted reward across each segment to be used for oracle labels
-            returns = np.sum(
-                batch["reward"] * np.power(replay_buffer.discount, np.arange(batch["reward"].shape[1])), axis=1
-            )
-            queries = dict(
-                obs_1=batch["obs"][:capacity],
-                obs_2=batch["obs"][capacity:],
-                action_1=batch["action"][:capacity],
-                action_2=batch["action"][capacity:],
-            )
-            labels = 1.0 * (returns[:capacity] < returns[capacity:])
-            dataset.add(queries, labels)
-            # Explicitly delete the replay buffer
-            del replay_buffer
-            self._datasets[task] = dataset
-            print("Finished", task)
-
-    def __iter__(self):
-        assert torch.utils.data.get_worker_info() is None, "FeedbackLabel Dataset is not designed for parallelism."
-        iterators = {task: iter(dataset) for task, dataset in self._datasets.items()}
-        while True:
-            for task, iterator in iterators.items():
-                try:
-                    batch = next(iterator)
-                except StopIteration:
-                    # We ran out of batches in one of the datasets. This is approximately one epoch, so return.
-                    return
-                yield (self._task_to_id[task], batch)

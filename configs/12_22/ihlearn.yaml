@@ -1,13 +1,13 @@
 # Example Config that uses almost all values
 
-alg: IHLearn
+alg: IHLearnOnline
 alg_kwargs:
   tau: 0.005
   init_temperature: 0.1
   target_freq: 2
-  init_steps: 1000
-  reward_freq: 500
-  reward_epochs: 0.95
+  bc_coeff: 0.0
+  random_steps: 10000
+  reward_freq: 5000
   max_feedback: 8000
   init_feedback_size: 40
   reward_batch_size: 64
@@ -34,11 +34,6 @@ network_kwargs:
     ensemble_size: 3
     ortho_init: true
 
-batch_size: null
-collate_fn: null
-checkpoint: null
-seed: null
-
 env: mw_door-close-v2
 
 dataset: ReplayBuffer
@@ -52,13 +47,19 @@ dataset_kwargs:
 
 processor: null
 
-train_kwargs: # Arguments given to Algorithm.train
+trainer_kwargs: # Arguments given to Algorithm.train
   total_steps: 1000000 # The total number of steps to train
   log_freq: 1000 # How often to log values
   eval_freq: 10000 # How often to run evals
   eval_fn: eval_policy
   eval_kwargs:
-    num_ep: 15 # Number of enviornment episodes to run for evaluation
+    num_ep: 1 # Number of enviornment episodes to run for evaluation
   loss_metric: reward # The validation metric that determines when to save the "best_checkpoint"
-  workers: 0 # Number of dataloader workers.
+  train_dataloader_kwargs:
+    num_workers: 0
+    batch_size: null
+    collate_fn: null
   profile_freq: 1000
+
+checkpoint: null
+seed: null
