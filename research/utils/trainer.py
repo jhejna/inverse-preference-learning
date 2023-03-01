@@ -67,7 +67,7 @@ class Trainer(object):
         log_freq: int = 100,
         eval_freq: int = 1000,
         profile_freq: int = -1,
-        max_eval_steps: Optional[int] = None,
+        max_validation_steps: Optional[int] = None,
         loss_metric: Optional[str] = "loss",
         x_axis: str = "steps",
         benchmark: bool = False,
@@ -87,7 +87,7 @@ class Trainer(object):
         self.log_freq = log_freq
         self.eval_freq = eval_freq
         self.profile_freq = profile_freq
-        self.max_eval_steps = max_eval_steps
+        self.max_validation_steps = max_validation_steps
         self.loss_metric = loss_metric
         self.x_axis = x_axis
 
@@ -343,7 +343,7 @@ class Trainer(object):
                 try:
                     batch = next(self._validation_iterator)
                 except StopIteration:
-                    if self.max_eval_steps is None:
+                    if self.max_validation_steps is None:
                         self._validation_iterator = None  # Set to None for next validation.
                         break
                     else:
@@ -352,7 +352,7 @@ class Trainer(object):
                 batch = self.model.format_batch(batch)
                 validation_step(batch)
                 eval_steps += 1
-                if eval_steps == self.max_eval_steps:
+                if eval_steps == self.max_validation_steps:
                     break
             # Return the the average metrics.
             for k, v in validation_metric_lists.items():

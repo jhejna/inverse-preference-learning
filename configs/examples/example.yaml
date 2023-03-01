@@ -48,7 +48,7 @@ trainer_kwargs: # Arguments given to Algorithm.train
   log_freq: 25 # How often to log values
   profile_freq: 10 # How often to time different componetns
   eval_freq: 500 # How often to run evals
-  max_eval_steps: 100 # Maximum number of steps from the validation dataset, if included
+  max_validation_steps: 100 # Maximum number of steps from the validation dataset, if included
   loss_metric: loss # The validation metric that determines when to save the "best_checkpoint"
   eval_fn: eval_policy # evaluation function to run
   eval_kwargs:
