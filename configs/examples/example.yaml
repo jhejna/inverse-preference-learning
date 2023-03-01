@@ -59,6 +59,8 @@ trainer_kwargs: # Arguments given to Algorithm.train
   validation_dataloader_kwargs:
     workers: 0
   benchmark: False # whether or not to enable torch.cuddn.benchmark
-  torch_compile: True # wether or not to use torch compile
+  torch_compile: False # wether or not to use torch compile. Currently exhibits bugs -- waiting for real release.
   torch_compile_kwargs:
     mode: null # set torch compile key word args.
+
+seed: null # For manually setting the seed.

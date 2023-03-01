@@ -3,9 +3,11 @@ import gc
 import importlib
 import os
 import pprint
+import random
 from typing import Any, Dict, Optional, Union
 
 import gym
+import numpy as np
 import torch
 import yaml
 
@@ -87,6 +89,10 @@ class Config(BareConfig):
         super().__init__()
         # Define necesary fields
 
+        # Manage seeding.
+        self._seeded = False
+        self.config["seed"] = None
+
         # Env Args
         self.config["env"] = None
         self.config["env_kwargs"] = {}
@@ -118,6 +124,7 @@ class Config(BareConfig):
         self.config["network"] = None
         self.config["network_kwargs"] = {}
 
+        # Checkpoint
         self.config["checkpoint"] = None
 
         # Schedule args
@@ -143,6 +150,11 @@ class Config(BareConfig):
         config = self.copy()
         Config._parse_helper(config.config)
         config._parsed = True
+        # Before we make any objects, make sure we set the seeds.
+        if self.config["seed"] is not None:
+            torch.manual_seed(self.config["seed"])
+            np.random.seed(self.config["seed"])
+            random.seed(self.config["seed"])
         return config
 
     def flatten(self) -> Dict:
@@ -198,7 +210,7 @@ class Config(BareConfig):
             if isinstance(schedulers[k], str):
                 schedulers[k] = torch.optim.lr_scheduler.LambdaLR
                 # Create the lambda function, and pass it in as a keyword arg
-                schedulers_kwargs[k]["lr_lambda"] = vars(schedules)[self["schedule"]](**schedulers_kwargs[k])
+                schedulers_kwargs[k] = dict(lr_lambda=vars(schedules)[self["schedule"]](**schedulers_kwargs[k]))
 
         return schedulers, schedulers_kwargs
 

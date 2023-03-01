@@ -1,6 +1,5 @@
 import copy
 import os
-import random
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Set, Type, Union
 
@@ -161,15 +160,6 @@ class Algorithm(ABC):
                 for b in attr.buffers():
                     _bytes += b.nelement() * b.element_size()
         return _bytes
-
-    def seed(self, seed: int) -> None:
-        torch.manual_seed(seed)
-        np.random.seed(seed)
-        random.seed(seed)
-        if self.env is not None:
-            self.env.seed(seed)
-        if self.eval_env is not None:
-            self.eval_env.seed(seed)
 
     def setup_processor(self, processor_class: Optional[Type[Processor]], processor_kwargs: Dict) -> None:
         if processor_class is None:

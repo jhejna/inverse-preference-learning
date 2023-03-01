@@ -63,12 +63,11 @@ class Trainer(object):
     def __init__(
         self,
         eval_env: Optional[gym.Env] = None,
-        seed: int = None,
         total_steps: int = 1000,
         log_freq: int = 100,
         eval_freq: int = 1000,
         profile_freq: int = -1,
-        max_eval_steps: int = -1,
+        max_eval_steps: Optional[int] = None,
         loss_metric: Optional[str] = "loss",
         x_axis: str = "steps",
         benchmark: bool = False,
@@ -82,7 +81,6 @@ class Trainer(object):
     ) -> None:
         self._model = None
         self.eval_env = eval_env
-        self.seed = seed
 
         # Logging parameters
         self.total_steps = total_steps
@@ -96,6 +94,7 @@ class Trainer(object):
         # Performance parameters
         self.benchmark = benchmark
         assert subproc_eval == False, "Subproc eval not yet supported"
+        assert torch_compile == False, "Torch Compile currently exhibits bugs. Do not use."
         self.torch_compile = torch_compile
         self.torch_compile_kwargs = torch_compile_kwargs
 
@@ -108,6 +107,7 @@ class Trainer(object):
         self.train_dataloader_kwargs = train_dataloader_kwargs
         self._validation_dataloader = None
         self.validation_dataloader_kwargs = validation_dataloader_kwargs
+        self._validation_iterator = None
 
     def set_model(self, model: Algorithm):
         assert self._model is None, "Model has already been set."
@@ -157,14 +157,9 @@ class Trainer(object):
         # If the model has not been compiled, compile it.
         if not self.model.compiled and self.torch_compile:
             self.model.compile(**self.torch_compile_kwargs)
-            return True
-        else:
-            return False
 
     def train(self, path: str):
         # Prepare the model for training by initializing the optimizers and the schedulers
-        if self.seed is not None:
-            self.model.seed(self.seed)
         self.model.setup_optimizers()
         self.check_compilation()
         self.model.setup_schedulers()
@@ -337,14 +332,28 @@ class Trainer(object):
             eval_steps = 0
             validation_metric_lists = defaultdict(list)
             validation_step = log_wrapper(self.model.validation_step, validation_metric_lists)
-            for batch in self.validation_dataloader:
+            # Get the iterator or continue from where we just left off.
+            if self._validation_iterator is None:
+                self._validation_iterator = iter(self.validation_dataloader)
+            while True:
+                try:
+                    batch = next(self._validation_iterator)
+                except StopIteration:
+                    if self.max_eval_steps is None:
+                        self._validation_iterator = None  # Set to None for next validation.
+                        break
+                    else:
+                        self._validation_iterator = iter(self.validation_dataloader)
+                        batch = next(self._validation_iterator)
                 batch = self.model.format_batch(batch)
                 validation_step(batch)
                 eval_steps += 1
                 if eval_steps == self.max_eval_steps:
                     break
+            # Return the the average metrics.
             for k, v in validation_metric_lists.items():
                 validation_metrics[k] = np.mean(v)
+        # Update with any extras.
         validation_metrics.update(self.model.validation_extras(path, step))
         return validation_metrics
 
