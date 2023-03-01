@@ -1,10 +1,10 @@
 name: few-shot-pref-rl
 channels:
-  - pytorch
+  - pytorch-nightly
   - nvidia
   - defaults
 dependencies:
-  - python=3.8 # For polymetis compatibility
+  - python
 
   # Development
   - black
@@ -14,14 +14,14 @@ dependencies:
 
   # pytorch
   - pytorch
-  - cudatoolkit=11.3
+  - pytorch-cuda=11.7
   - torchvision
   - torchtext
+  - torchaudio
 
   # NP Family
   - numpy
   - scipy
-  - networkx
   - scikit-image
 
   # IO
@@ -47,7 +47,6 @@ dependencies:
   - pip
   - pip:
       - gym==0.23.1
-      - dm_control
       - mujoco-py<2.2,>=2.1
       - git+https://github.com/rlworkgroup/metaworld.git@master#egg=metaworld
       - opencv-python

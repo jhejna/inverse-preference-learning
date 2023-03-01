@@ -1,168 +1,371 @@
 import os
-import subprocess
-from typing import Dict, Optional, Union
+import random
+import time
+from collections import defaultdict
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import gym
+import numpy as np
 import torch
 
-import research
 from research.algs.base import Algorithm
 
-from . import schedules
-from .config import Config
+from . import evaluate
 from .logger import Logger
 
-
-def get_env(env: gym.Env, env_kwargs: Dict, wrapper: Optional[gym.Env], wrapper_kwargs: Dict) -> gym.Env:
-    # Try to get the environment
-    try:
-        env = vars(research.envs)[env](**env_kwargs)
-    except:
-        env = gym.make(env, **env_kwargs)
-    if wrapper is not None:
-        env = vars(research.envs)[wrapper](env, **wrapper_kwargs)
-    return env
+MAX_VALID_METRICS = {"reward", "accuracy", "success", "is_success"}
 
 
-def get_model(config, device: Union[str, torch.device] = "auto") -> Algorithm:
-    assert isinstance(config, Config)
-    alg_class = vars(research.algs)[config["alg"]]
-    dataset_class = None if config["dataset"] is None else vars(research.datasets)[config["dataset"]]
-    network_class = None if config["network"] is None else vars(research.networks)[config["network"]]
-    optim_class = None if config["optim"] is None else vars(torch.optim)[config["optim"]]
-    processor_class = None if config["processor"] is None else vars(research.processors)[config["processor"]]
-
-    # TODO: Construct the train env as a vector env
-    """
-    if config['parallel_envs']:
-        env = research.envs.SubprocVecEnv(config['env'], config['env_kwargs'], config['wrapper'],
-                                          config['wrapper_kwargs'], **config['vec_kwargs'])
-    else:
-        env = research.envs.DummyVecEnv(config['env'], config['env_kwargs'], config['wrapper'],
-                                        config['wrapper_kwargs'], **config['vec_kwargs'])
-    """
-    env = (
-        None
-        if config["env"] is None
-        else get_env(config["env"], config["env_kwargs"], config["wrapper"], config["wrapper_kwargs"])
-    )
-
-    # TODO: perhaps its better to construct eval env during the call to train
-    # The fix to this would be to create an empty env from the eval env spec if None is provided
-    # This could create some hassle though, as we create extra objects and then delete them
-    # This could be particularly bad if the env creation takes a lot of resources.
-    # Construct the eval env. Note that wrappers are assumed to be shared.
-    if config["train_kwargs"].get("eval_fn", None) is None:
-        # If we don't have an eval function, we don't need an eval env.
-        eval_env = None
-    elif config["eval_env"] is None:
-        eval_env = get_env(config["env"], config["env_kwargs"], config["wrapper"], config["wrapper_kwargs"])
-    else:
-        eval_env = get_env(config["eval_env"], config["eval_env_kwargs"], config["wrapper"], config["wrapper_kwargs"])
-
-    algo = alg_class(
-        env,
-        network_class,
-        dataset_class,
-        network_kwargs=config["network_kwargs"],
-        dataset_kwargs=config["dataset_kwargs"],
-        validation_dataset_kwargs=config["validation_dataset_kwargs"],
-        device=device,
-        processor_class=processor_class,
-        processor_kwargs=config["processor_kwargs"],
-        optim_class=optim_class,
-        optim_kwargs=config["optim_kwargs"],
-        collate_fn=config["collate_fn"],
-        batch_size=config["batch_size"],
-        checkpoint=config["checkpoint"],
-        eval_env=eval_env,
-        **config["alg_kwargs"],
-    )
-
-    return algo
+def log_from_dict(logger: Logger, metric_lists: Dict[str, Union[List, float]], prefix: str) -> None:
+    keys_to_remove = []
+    for metric_name, metric_value in metric_lists.items():
+        if isinstance(metric_value, list) and len(metric_value) > 0:
+            logger.record(prefix + "/" + metric_name, np.mean(metric_value))
+            keys_to_remove.append(metric_name)
+        else:
+            logger.record(prefix + "/" + metric_name, metric_value)
+            keys_to_remove.append(metric_name)
+    for key in keys_to_remove:
+        del metric_lists[key]
 
 
-def train(config: Config, path: str, device: Union[str, torch.device] = "auto") -> Algorithm:
-    # Create the save path and save the config
-    print("[research] Training agent with config:")
-    print(config)
-    os.makedirs(path, exist_ok=False)
-    print("[research] Model Directory:", path)
+def log_wrapper(fn: Callable, metric_lists: Dict[str, List]):
+    def wrapped_fn(*args, **kwargs):
+        metrics = fn(*args, **kwargs)
+        for name, value in metrics.items():
+            metric_lists[name].append(value)
 
-    config.save(path)
-    # save the git hash
-    process = subprocess.Popen(["git", "rev-parse", "HEAD"], shell=False, stdout=subprocess.PIPE)
-    git_head_hash = process.communicate()[0].strip()
-    with open(os.path.join(path, "git_hash.txt"), "wb") as f:
-        f.write(git_head_hash)
-
-    # Setup wandb here if we have it configured in setup_shell
-    wandb_api_key = os.getenv("WANDB_API_KEY")
-    if wandb_api_key is not None and wandb_api_key != "":
-        # We have wandb, get the project name and initialize
-        import wandb
-
-        project_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        wandb.init(
-            project=os.path.basename(project_dir),
-            name=os.path.basename(path),
-            config=config.flatten(separator="-"),
-            dir=os.path.join(os.path.dirname(project_dir), "wandb"),
-        )
-        use_wandb = True
-    else:
-        use_wandb = False
-
-    config = config.parse()  # Parse the config before getting the model
-    model = get_model(config, device=device)
-    assert issubclass(type(model), Algorithm)
-    print("[research] Using device", model.device)
-
-    if config["seed"] is not None:
-        # Seed the model if provided.
-        model.seed(config["seed"])
-
-    # Fetch the scheduler. If we don't have an optim dict, change it to one.
-    if not isinstance(config["schedule"], dict):
-        schedule = dict(network=config["schedule"])
-        schedule_kwargs = dict(network=config["schedule_kwargs"])
-    else:
-        schedule = config["schedule"]
-        schedule_kwargs = config["schedule_kwargs"]
-
-    # Make sure we fetch the schedule if its provided as a string
-    for k in schedule.keys():
-        if isinstance(schedule[k], str):
-            schedule[k] = torch.optim.lr_scheduler.LambdaLR
-            # Create the lambda function, and pass it in as a keyword arg
-            schedule_kwargs[k]["lr_lambda"] = vars(schedules)[config["schedule"]](**schedule_kwargs[k])
-
-    print(
-        "[research] Training a model with",
-        sum(p.numel() for p in model.network.parameters() if p.requires_grad),
-        "trainable parameters.",
-    )
-
-    model.train(
-        path,
-        schedule=schedule,
-        schedule_kwargs=schedule_kwargs,
-        use_wandb=use_wandb,
-        **config["train_kwargs"],
-    )
-
-    print("[research] finished training for", model.steps, "steps.")
-    return model
+    return wrapped_fn
 
 
-def load(config: Config, model_path: str, device: Union[str, torch.device] = "auto", strict: bool = True) -> Algorithm:
-    config = config.parse()  # Parse the config before getting the model
-    model = get_model(config, device=device)
-    model.load(model_path, strict=strict)
-    return model
+def time_wrapper(fn: Callable, name: str, profile_lists: Dict[str, List]):
+    def wrapped_fn(*args, timeit=False, **kwargs):
+        if timeit:
+            start_time = time.time()
+            output = fn(*args, **kwargs)
+            end_time = time.time()
+            profile_lists[name].append(end_time - start_time)
+        else:
+            output = fn(*args, **kwargs)
+        return output
+
+    return wrapped_fn
 
 
-def load_from_path(checkpoint_path: str, device: Union[str, torch.device] = "auto", strict: bool = True) -> Algorithm:
-    config_path = os.path.join(os.path.dirname(checkpoint_path), "config.yaml")
-    config = Config.load(config_path)
-    return load(config, checkpoint_path, device=device, strict=strict)
+def _worker_init_fn(worker_id: int) -> None:
+    seed = torch.utils.data.get_worker_info().seed
+    seed = seed % (2**32 - 1)  # Reduce to valid 32bit unsigned range
+    np.random.seed(seed)
+    random.seed(seed)
+
+
+class Trainer(object):
+    def __init__(
+        self,
+        eval_env: Optional[gym.Env] = None,
+        total_steps: int = 1000,
+        log_freq: int = 100,
+        eval_freq: int = 1000,
+        profile_freq: int = -1,
+        max_validation_steps: Optional[int] = None,
+        loss_metric: Optional[str] = "loss",
+        x_axis: str = "steps",
+        benchmark: bool = False,
+        subproc_eval: bool = False,
+        torch_compile: bool = False,
+        torch_compile_kwargs: Dict = {},
+        eval_fn: Optional[Any] = None,
+        eval_kwargs: Dict = {},
+        train_dataloader_kwargs: Dict = {},
+        validation_dataloader_kwargs: Dict = {},
+    ) -> None:
+        self._model = None
+        self.eval_env = eval_env
+
+        # Logging parameters
+        self.total_steps = total_steps
+        self.log_freq = log_freq
+        self.eval_freq = eval_freq
+        self.profile_freq = profile_freq
+        self.max_validation_steps = max_validation_steps
+        self.loss_metric = loss_metric
+        self.x_axis = x_axis
+
+        # Performance parameters
+        self.benchmark = benchmark
+        assert subproc_eval == False, "Subproc eval not yet supported"
+        assert torch_compile == False, "Torch Compile currently exhibits bugs. Do not use."
+        self.torch_compile = torch_compile
+        self.torch_compile_kwargs = torch_compile_kwargs
+
+        # Eval parameters
+        self.eval_fn = eval_fn
+        self.eval_kwargs = eval_kwargs
+
+        # Dataloader parameters
+        self._train_dataloader = None
+        self.train_dataloader_kwargs = train_dataloader_kwargs
+        self._validation_dataloader = None
+        self.validation_dataloader_kwargs = validation_dataloader_kwargs
+        self._validation_iterator = None
+
+    def set_model(self, model: Algorithm):
+        assert self._model is None, "Model has already been set."
+        self._model = model
+
+    @property
+    def model(self):
+        if self._model is None:
+            raise ValueError("Model has not yet been set! use `set_model` before calling trainer functionality.")
+        return self._model
+
+    @property
+    def train_dataloader(self) -> torch.utils.data.DataLoader:
+        if not hasattr(self.model, "dataset"):
+            self.model.setup_train_dataset()
+        if self.model.dataset is None:
+            return None
+        if self._train_dataloader is None:
+            shuffle = not isinstance(self.model.dataset, torch.utils.data.IterableDataset)
+            pin_memory = self.model.device.type == "cuda"
+            self._train_dataloader = torch.utils.data.DataLoader(
+                self.model.dataset,
+                shuffle=shuffle,
+                pin_memory=pin_memory,
+                worker_init_fn=_worker_init_fn,
+                **self.train_dataloader_kwargs,
+            )
+        return self._train_dataloader
+
+    @property
+    def validation_dataloader(self) -> torch.utils.data.DataLoader:
+        if not hasattr(self.model, "validation_dataset"):
+            self.model.setup_validation_dataset()
+        if self.model.validation_dataset is None:
+            return None
+        if self._validation_dataloader is None:
+            kwargs = self.train_dataloader_kwargs.copy()
+            kwargs.update(self.validation_dataloader_kwargs)
+            shuffle = not isinstance(self.model.validation_dataset, torch.utils.data.IterableDataset)
+            pin_memory = self.model.device.type == "cuda"
+            self._validation_dataloader = torch.utils.data.DataLoader(
+                self.model.validation_dataset,
+                shuffle=shuffle,
+                pin_memory=pin_memory,
+                worker_init_fn=_worker_init_fn,
+                **kwargs,
+            )
+        return self._validation_dataloader
+
+    def check_compilation(self):
+        # If the model has not been compiled, compile it.
+        if not self.model.compiled and self.torch_compile:
+            self.model.compile(**self.torch_compile_kwargs)
+
+    def train(self, path: str):
+        # Prepare the model for training by initializing the optimizers and the schedulers
+        self.model.setup_optimizers()
+        self.check_compilation()
+        self.model.setup_schedulers()
+        self.model.setup()  # perform any other arbitrary setup needs.
+        print("[research] Training a model with", self.model.num_params, "trainable parameters.")
+        print("[research] Estimated size: {:.2f} GB".format(self.model.nbytes / 1024**3))
+
+        # First, we should detect if the path already contains a model and a checkpoint
+        if os.path.exists(os.path.join(path, "final_model.pt")):
+            # If so, we can finetune from that initial checkpoint. When we do this we should load strictly.
+            # If we can't load it, we should immediately throw an error.
+            metadata = self.model.load(os.path.join(path, "final_model.pt"), strict=True)
+            current_step, steps, epochs = metadata["current_step"], metadata["steps"], metadata["epochs"]
+            # Try to load the xaxis value if we need to.
+        else:
+            current_step, steps, epochs = 0, 0, 0
+
+        # Setup benchmarking.
+        if self.benchmark:
+            torch.backends.cudnn.benchmark = True
+
+        # Setup the Logger
+        writers = ["tb", "csv"]
+        try:
+            # Detect if wandb has been setup. If so, log it.
+            import wandb
+
+            if wandb.run is not None:
+                writers.append("wandb")
+        except:
+            pass
+
+        logger = Logger(path=path, writers=writers)
+
+        # Construct all of the metric lists to be used during training
+        # Construct all the metric lists to be used during training
+        train_metric_lists = defaultdict(list)
+        extras_metric_lists = defaultdict(list)
+        profiling_metric_lists = defaultdict(list)
+        # Wrap the functions we use in logging and profile wrappers
+        train_step = log_wrapper(self.model.train_step, train_metric_lists)
+        train_step = time_wrapper(train_step, "train_step", profiling_metric_lists)
+        extras_step = log_wrapper(self.model.train_extras, extras_metric_lists)
+        extras_step = time_wrapper(extras_step, "extras_step", profiling_metric_lists)
+        format_batch = time_wrapper(self.model.format_batch, "processor", profiling_metric_lists)
+
+        # Compute validation trackers
+        using_max_valid_metric = self.loss_metric in MAX_VALID_METRICS
+        best_valid_metric = -1 * float("inf") if using_max_valid_metric else float("inf")
+
+        # Compute logging frequencies
+        last_train_log = -self.log_freq  # Ensure that we log on the first step
+        last_validation_log = (
+            0 if self.benchmark else -self.eval_freq
+        )  # Ensure that we log the first step, except if we are benchmarking.
+
+        profile = True if self.profile_freq > 0 else False  # must profile to get all keys for csv log
+        self.model.train()
+
+        start_time = time.time()
+        current_time = start_time
+
+        while current_step <= self.total_steps:
+            for batch in self.train_dataloader:
+                if profile:
+                    profiling_metric_lists["dataset"].append(time.time() - current_time)
+
+                # Run any pre-train steps, like stepping the enviornment or training auxiliary networks.
+                # Realistically this is just going to be used for environment stepping, but hey! Good to have.
+                extras_step(current_step, self.total_steps, timeit=profile)
+
+                # Next, format the batch
+                batch = format_batch(batch, timeit=profile)
+
+                # Run the train step
+                train_step(batch, current_step, self.total_steps, timeit=profile)
+
+                # Update the schedulers
+                for scheduler in self.model.schedulers.values():
+                    scheduler.step()
+
+                steps += 1
+                if self.x_axis == "steps":
+                    new_current_step = steps + 1
+                elif self.x_axis == "epoch":
+                    new_current_step = epochs
+                elif self.x_axis in train_metric_lists:
+                    new_current_step = train_metric_lists[self.x_axis][-1]  # Get the most recent value
+                elif self.x_axis in extras_metric_lists:
+                    new_current_step = extras_metric_lists[self.x_axis][-1]  # Get the most recent value
+                else:
+                    raise ValueError("Could not find train value for x_axis " + str(self.x_axis))
+
+                # Now determine if we should dump the logs
+                if (current_step - last_train_log) >= self.log_freq:
+                    # Record timing metrics
+                    current_time = time.time()
+                    logger.record("time/steps", steps)
+                    logger.record("time/epochs", epochs)
+                    logger.record(
+                        "time/steps_per_second", (current_step - last_train_log) / (current_time - start_time)
+                    )
+                    log_from_dict(logger, profiling_metric_lists, "time")
+                    start_time = current_time
+                    # Record learning rates
+                    for name, scheduler in self.model.schedulers.items():
+                        logger.record("lr/" + name, scheduler.get_last_lr()[0])
+                    # Record training metrics
+                    log_from_dict(logger, extras_metric_lists, "train_extras")
+                    log_from_dict(logger, train_metric_lists, "train")
+                    logger.dump(step=current_step)
+                    # Update the last time we logged.
+                    last_train_log = current_step
+
+                if (current_step - last_validation_log) >= self.eval_freq:
+                    self.model.eval()
+                    current_valid_metric = None
+                    model_metadata = dict(current_step=current_step, epochs=epochs, steps=steps)
+
+                    # Run and time validation step
+                    current_time = time.time()
+                    validation_metrics = self.validate(path, current_step)
+                    logger.record("time/validation", time.time() - current_time)
+                    if self.loss_metric in validation_metrics:
+                        current_valid_metric = validation_metrics[self.loss_metric]
+                    log_from_dict(logger, validation_metrics, "validation")
+
+                    # Run and time eval step
+                    current_time = time.time()
+                    eval_metrics = self.evaluate(path, current_step)
+                    logger.record("time/eval", time.time() - current_time)
+                    if self.loss_metric in eval_metrics:
+                        current_valid_metric = eval_metrics[self.loss_metric]
+                    log_from_dict(logger, eval_metrics, "eval")
+
+                    # Determine if we have a new best self.model.
+                    if current_valid_metric is None:
+                        pass
+                    elif (using_max_valid_metric and current_valid_metric > best_valid_metric) or (
+                        not using_max_valid_metric and current_valid_metric < best_valid_metric
+                    ):
+                        best_valid_metric = current_valid_metric
+                        self.model.save(path, "best_model", model_metadata)
+
+                    # Eval Logger dump to CSV
+                    logger.dump(step=current_step, eval=True)  # Mark True on the eval flag
+                    last_validation_log = current_step
+                    self.model.save(path, "final_model", model_metadata)  # Also save the final model every eval period.
+
+                    # Put the model back in train mode.
+                    self.model.train()
+                    last_validation_log = current_step
+
+                current_step = new_current_step  # Update the current step
+                if current_step >= self.total_steps:
+                    break  # We need to break in the middle of an epoch.
+
+                profile = self.profile_freq > 0 and steps % self.profile_freq == 0
+                if profile:
+                    current_time = time.time()  # update current time only, not start time
+
+            epochs += 1
+
+    def validate(self, path: str, step: int):
+        assert not self.model.training
+        self.check_compilation()
+        # Setup the dataset
+        validation_metrics = {}
+        if self.validation_dataloader is not None:
+            eval_steps = 0
+            validation_metric_lists = defaultdict(list)
+            validation_step = log_wrapper(self.model.validation_step, validation_metric_lists)
+            # Get the iterator or continue from where we just left off.
+            if self._validation_iterator is None:
+                self._validation_iterator = iter(self.validation_dataloader)
+            while True:
+                try:
+                    batch = next(self._validation_iterator)
+                except StopIteration:
+                    if self.max_validation_steps is None:
+                        self._validation_iterator = None  # Set to None for next validation.
+                        break
+                    else:
+                        self._validation_iterator = iter(self.validation_dataloader)
+                        batch = next(self._validation_iterator)
+                batch = self.model.format_batch(batch)
+                validation_step(batch)
+                eval_steps += 1
+                if eval_steps == self.max_validation_steps:
+                    break
+            # Return the the average metrics.
+            for k, v in validation_metric_lists.items():
+                validation_metrics[k] = np.mean(v)
+        # Update with any extras.
+        validation_metrics.update(self.model.validation_extras(path, step))
+        return validation_metrics
+
+    def evaluate(self, path: str, step: int):
+        assert not self.model.training
+        self.check_compilation()
+        eval_fn = None if self.eval_fn is None else vars(evaluate)[self.eval_fn]
+        if eval_fn is None:
+            return dict()
+        eval_metrics = eval_fn(self.eval_env, self.model, path, step, **self.eval_kwargs)
+        return eval_metrics

@@ -1,9 +1,9 @@
 name: few-shot-pref-rl
 channels:
-  - pytorch
-  - defaults
+  - pytorch-nightly
+  - default
 dependencies:
-  - python=3.8 # For polymetis compatibility
+  - python
 
   # Development
   - black
@@ -16,11 +16,11 @@ dependencies:
   - cpuonly
   - torchvision
   - torchtext
+  - torchaudio
 
   # NP Family
   - numpy
   - scipy
-  - networkx
   - scikit-image
 
   # IO

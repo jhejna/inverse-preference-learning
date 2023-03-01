@@ -194,20 +194,33 @@ def np_dataset_alloc(
 ) -> np.ndarray:
     if isinstance(space, gym.spaces.Dict):
         return {k: np_dataset_alloc(v, capacity, begin_pad=begin_pad, end_pad=end_pad) for k, v in space.items()}
-    elif isinstance(space, gym.spaces.Box):
+    elif isinstance(space, (gym.spaces.Box, np.ndarray)):
         dtype = np.float32 if space.dtype == np.float64 else space.dtype
         return np.empty((capacity,) + begin_pad + space.shape + end_pad, dtype=dtype)
-    elif isinstance(space, gym.spaces.Discrete) or isinstance(space, np.int64):
+    elif isinstance(space, gym.spaces.Discrete) or isinstance(space, (int, np.int64)):
         return np.empty((capacity,) + begin_pad + end_pad, dtype=np.int64)
-    elif isinstance(space, np.ndarray):
-        dtype = np.float32 if space.dtype == np.float64 else space.dtype
-        return np.empty((capacity,) + begin_pad + space.shape + end_pad, dtype=dtype)
     elif isinstance(space, float) or isinstance(space, np.float32):
         return np.empty((capacity,) + begin_pad + end_pad, dtype=np.float32)
     elif isinstance(space, bool):
         return np.empty((capacity,) + begin_pad + end_pad, dtype=np.bool_)
     else:
-        raise ValueError("Invalid space provided")
+        raise ValueError("Invalid space provided to `np_dataset_alloc`")
+
+
+def np_bytes_per_instance(space: gym.Space) -> int:
+    if isinstance(space, gym.spaces.Dict):
+        return sum([np_bytes_per_instance(v) for k, v in space.items()])
+    elif isinstance(space, (gym.spaces.Box, np.ndarray)):
+        dtype = np.float32 if space.dtype == np.float64 else space.dtype
+        return np.dtype(dtype).itemsize * np.prod(space.shape)
+    elif isinstance(space, gym.spaces.Discrete) or isinstance(space, (int, np.int64)):
+        return np.dtype(np.int64).itemsize
+    elif isinstance(space, float) or isinstance(space, np.float32):
+        return np.dtype(np.float32).itemsize
+    elif isinstance(space, bool):
+        return np.dtype(np.bool_).itemsize
+    else:
+        raise ValueError("Invalid space provided to `np_bytes_per_instance`")
 
 
 def _flatten_dict_helper(flat_dict: Dict, value: Any, prefix: str, separator: str = ".") -> None:
@@ -219,16 +232,16 @@ def _flatten_dict_helper(flat_dict: Dict, value: Any, prefix: str, separator: st
         flat_dict[prefix[1:]] = value
 
 
-def flatten_dict(d: Dict) -> Dict:
+def flatten_dict(d: Dict, separator: str = ".") -> Dict:
     flat_dict = dict()
-    _flatten_dict_helper(flat_dict, d, "")
+    _flatten_dict_helper(flat_dict, d, "", separator=separator)
     return flat_dict
 
 
-def nest_dict(d: Dict) -> Dict:
+def nest_dict(d: Dict, separator: str = ".") -> Dict:
     nested_d = dict()
     for key in d.keys():
-        key_parts = key.split(".")
+        key_parts = key.split(separator)
         current_d = nested_d
         while len(key_parts) > 1:
             if key_parts[0] not in current_d:
@@ -239,7 +252,7 @@ def nest_dict(d: Dict) -> Dict:
     return nested_d
 
 
-def fetch_from_dict(d: Dict, keys: Union[str, List, Tuple]) -> List[Any]:
+def fetch_from_dict(d: Dict, keys: Union[str, List, Tuple], separator=".") -> List[Any]:
     """
     inputs:
         d: a nested dictionary datastrucutre
@@ -249,7 +262,7 @@ def fetch_from_dict(d: Dict, keys: Union[str, List, Tuple]) -> List[Any]:
     if not isinstance(keys, list) and not isinstance(keys, tuple):
         keys = [keys]
     for key in keys:
-        key_parts = key.split(".")
+        key_parts = key.split(separator)
         current_dict = d
         while len(key_parts) > 1:
             current_dict = current_dict[key_parts[0]]

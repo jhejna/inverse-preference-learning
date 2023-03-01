@@ -58,7 +58,7 @@ class CSVWriter(Writer):
     def _reset_csv_handler(self):
         if self._csv_file_handler is not None:
             self._csv_file_handler.close()  # Close our fds
-        self.csv_file_handler = open(os.path.join(self.path, "log.csv"), "w")
+        self.csv_file_handler = open(os.path.join(self.path, "log.csv"), "a")
         self.csv_logger = csv.DictWriter(self.csv_file_handler, fieldnames=list(self.values.keys()))
         self.csv_logger.writeheader()
 

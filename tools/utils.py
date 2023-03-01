@@ -4,6 +4,7 @@ import itertools
 import json
 import os
 import pprint
+import re
 import tempfile
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
@@ -128,14 +129,14 @@ def get_scripts(args: argparse.Namespace) -> List[Tuple[str, Dict]]:
 
 class Config(object):
     """
-    A lightweight copy of the config file with only basic IO capabilities.
-    This is used so that we don't load in the full package on slurm head nodes.
-    This is a bit of a work around for now, but it saves a lot of time.
+    This is a bare copy of the config that does not require importing any of the research packages.
+    This file has been copied out for use in the tools/trainer etc. to avoid loading heavy packages
+    when the goal is just to create configs. It defines no structure.
     """
 
     def __init__(self):
         # Define the necesary structure for a complete training configuration
-        self.parsed = False
+        self._parsed = False
         self.config = dict()
 
     def save(self, path: str) -> None:
@@ -157,6 +158,9 @@ class Config(object):
         config.update(data)
         return config
 
+    def get(self, key: str, default: Optional[Any] = None):
+        return self.config.get(key, default)
+
     def __getitem__(self, key: str) -> Any:
         return self.config[key]
 
@@ -177,11 +181,12 @@ class Config(object):
 
 
 class Experiment(dict):
-    def __init__(self, base: str, name: Optional[str] = None, paired_keys: List[List[str]] = []):
+    def __init__(self, bases: List[str], name: Optional[str] = None, paired_keys: List[List[str]] = []):
         super().__init__()
         self._name = name
-        self.base_config = Config.load(base)
+        self.bases = bases
         self.paired_keys = paired_keys
+        self._str_vals = dict()
 
     @property
     def name(self):
@@ -194,7 +199,9 @@ class Experiment(dict):
             data = json.load(fp)
         # Run formatting checks
         assert "base" in data, "Did not supply a base config"
-        base_config = data["base"]
+        base_configs = data["base"]
+        if isinstance(base_configs, str):
+            base_configs = [base_configs]  # Expand to a list
         del data["base"]  # Remove the base configuration
 
         if "paired_keys" in data:
@@ -210,9 +217,26 @@ class Experiment(dict):
         for k, v in data.items():
             assert isinstance(k, str)
             assert isinstance(v, list)
-        experiment = cls(base=base_config, name=name, paired_keys=paired_keys)
+        experiment = cls(bases=base_configs, name=name, paired_keys=paired_keys)
         experiment.update(data)
+
+        # Compute the str vals
+        for k, v in experiment.items():
+            experiment._str_vals[k] = [Experiment._get_str_val(val) for val in v]
+
         return experiment
+
+    @staticmethod
+    def _get_str_val(v):
+        if isinstance(v, str):
+            str_val = v
+        elif isinstance(v, (int, float, bool)) or v is None:
+            str_val = str(v)
+        elif isinstance(v, list):
+            str_val = ",".join([Experiment._get_str_val(val) for val in v])
+        else:
+            raise ValueError("Could not convert config value to str.")
+        return str_val
 
     def get_variants(self) -> List:
         paired_keys = set()
@@ -244,63 +268,107 @@ class Experiment(dict):
 
         return variants
 
-    @staticmethod
-    def format_name(v: Any):
-        if isinstance(v, str):
-            if "/" in v:  # TODO: get parts of path that are different
-                str_val = os.path.basename(v)
-            else:
-                str_val = v
-        elif isinstance(v, int) or isinstance(v, float) or isinstance(v, bool) or v is None:
-            str_val = str(v)
-        elif isinstance(v, list):
-            str_val = "_".join([Experiment.format_name(val) for val in v])
-        else:
-            raise ValueError("Could not convert config value to str.")
-        return str_val
+    def format_name(self, k: str, v: Any) -> str:
+        # yes, this function is slow and has a bunch of repeated computation,
+        # but its just doing small string manipulations so thats fine.
+
+        # First, check to see if we even need to display this.
+        # If its in a paired key, and all the values are the same, we only need to display one
+        # Arbitrarily, we tie to the first.
+        for key_pair in self.paired_keys:
+            # Check if we are in this key pair and are not the first
+            if k in key_pair and key_pair[0] != k:
+                # Check that all the key pairs are equal
+                all_identical = True
+                for paired_key in key_pair:
+                    paired_key_identical = all(
+                        [self._str_vals[k][i] == self._str_vals[paired_key][i] for i in range(len(self[k]))]
+                    )
+                    all_identical = all_identical and paired_key_identical
+                    if not all_identical:
+                        break
+                if all_identical:
+                    return ""  # We don't need to store this key
+
+        # Next, determine the name to use for the key. This should be the shortest string that doesn't clash
+        key_parts = k.split(".")
+        key_parts_index = 0
+        exists_matching_key = True
+        while exists_matching_key:
+            key_parts_index -= 1
+            key_str = ".".join(key_parts[key_parts_index:])
+            exists_matching_key = any([key.endswith(key_str) for key in self.keys() if key != k])
+
+        # Finally, get the value for the key. We first cast type to string.
+        # Then, we try to remove all parts of the string that are shared between different subparts.
+        # Begin by computing string representations for each value.
+        use_full_str = False
+        use_full_str = use_full_str or v is None
+        use_full_str = use_full_str or isinstance(v, (int, float, bool))
+        use_full_str = use_full_str or isinstance(v, list) and len(v) > 0 and isinstance(v[0], (int, float, bool))
+        key_value = Experiment._get_str_val(v)
+
+        if not use_full_str:
+            # Take only parts of the string that are different across all values.
+            # First, compute the intersection of all of the keys
+            split_keys = "/|\\|_|-"  # For now just path characters and _ -
+            value_parts = re.split(split_keys, key_value)
+            intersect = set(value_parts)
+            for str_val in self._str_vals[k]:  # Each should be a list
+                intersect = intersect.intersection(re.split(split_keys, str_val))
+            key_value = "_".join([part for part in value_parts if part not in intersect])
+
+        return key_str + "-" + key_value
 
     def generate_configs_and_names(self) -> List[Tuple[str, str]]:
         variants = self.get_variants()
         configs_and_names = []
-        for i, variant in enumerate(variants):
-            config = self.base_config.copy()
-            name = ""
-            seed = None
-            remove_trailing_underscore = False
-            for k, v in variant.items():
-                config_path = k.split(".")
-                config_dict = config
-                # Recursively update the current config until we find the value.
-                while len(config_path) > 1:
+        for base_config in self.bases:
+            for i, variant in enumerate(variants):
+                config = Config.load(base_config)
+                name = ""
+                seed = None
+                remove_trailing_underscore = False
+                for k, v in variant.items():
+                    config_path = k.split(".")
+                    config_dict = config
+                    # Recursively update the current config until we find the value.
+                    while len(config_path) > 1:
+                        if not config_path[0] in config_dict:
+                            raise ValueError("Experiment specified key not in config: " + str(k))
+                        config_dict = config_dict[config_path[0]]
+                        config_path.pop(0)
                     if not config_path[0] in config_dict:
                         raise ValueError("Experiment specified key not in config: " + str(k))
-                    config_dict = config_dict[config_path[0]]
-                    config_path.pop(0)
-                if not config_path[0] in config_dict:
-                    raise ValueError("Experiment specified key not in config: " + str(k))
-                # Finally set the value
-                config_dict[config_path[0]] = v
+                    # Finally set the value
+                    config_dict[config_path[0]] = v
 
-                if k in FOLDER_KEYS and len(self[k]) > 1:
-                    name = os.path.join(v, name)
-                elif k == "seed" and len(self["seed"]) > 1:  # More than one seed specified.
-                    seed = v  # Note that seed is not added to the name.
-                elif len(self[k]) > 1:
-                    str_val = Experiment.format_name(v)
-                    name += str(config_path[0]) + "-" + str_val + "_"
-                    remove_trailing_underscore = True
+                    # Construct the name back to front.
+                    # Seed is always last
+                    if k in FOLDER_KEYS and len(self[k]) > 1:
+                        name = os.path.join(v, name)
+                    elif k == "seed" and len(self["seed"]) > 1:  # More than one seed specified.
+                        seed = v  # Note that seed is not added to the name.
+                    elif len(self[k]) > 1:
+                        name += self.format_name(k, v) + "_"
+                        remove_trailing_underscore = True
 
-            if remove_trailing_underscore:
-                name = name[:-1]
-            name = os.path.join(self.name, name)
-            if seed is not None:
-                name = os.path.join(name, "seed-" + str(seed))
-            if not os.path.exists(TMP_DIR):
-                os.mkdir(TMP_DIR)
-            _, config_path = tempfile.mkstemp(text=True, prefix="config_", suffix=".json", dir=TMP_DIR)
-            print("Variant", i + 1)
-            print(config)
-            config.save(config_path)
-            configs_and_names.append((config_path, name))
+                if remove_trailing_underscore:
+                    name = name[:-1]
+
+                # Add the basename
+                if len(self.bases) > 0:
+                    name = os.path.join(os.path.splitext(os.path.basename(base_config))[0], name)
+                # Add the experiment name
+                name = os.path.join(self.name, name)
+                if seed is not None:
+                    name = os.path.join(name, "seed-" + str(seed))
+                if not os.path.exists(TMP_DIR):
+                    os.mkdir(TMP_DIR)
+                _, config_path = tempfile.mkstemp(text=True, prefix="config_", suffix=".json", dir=TMP_DIR)
+                print("Variant", i + 1)
+                print(config)
+                config.save(config_path)
+                configs_and_names.append((config_path, name))
 
         return configs_and_names
