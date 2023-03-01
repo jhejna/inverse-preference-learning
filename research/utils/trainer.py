@@ -149,7 +149,11 @@ class Trainer(object):
             shuffle = not isinstance(self.model.validation_dataset, torch.utils.data.IterableDataset)
             pin_memory = self.model.device.type == "cuda"
             self._validation_dataloader = torch.utils.data.DataLoader(
-                self.model.dataset, shuffle=shuffle, pin_memory=pin_memory, worker_init_fn=_worker_init_fn, **kwargs
+                self.model.validation_dataset,
+                shuffle=shuffle,
+                pin_memory=pin_memory,
+                worker_init_fn=_worker_init_fn,
+                **kwargs,
             )
         return self._validation_dataloader
 
