@@ -1,3 +1,4 @@
+import collections
 import os
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -74,8 +75,8 @@ def plot_run(
 
         plot_df = pd.DataFrame({x_key: xs, y_key: ys})
 
-        ci = "sd" if len(paths) > 0 else None
-        sns.lineplot(ax=ax, x=x_key, y=y_key, data=plot_df, sort=True, ci=ci, label=label, **kwargs)
+        errorbar = "sd" if len(paths) > 0 else None
+        sns.lineplot(ax=ax, x=x_key, y=y_key, data=plot_df, sort=True, errorbar=errorbar, label=label, **kwargs)
 
 
 def create_plot(
@@ -98,7 +99,7 @@ def create_plot(
 
     # Setup the color map
     if color_map is None:
-        color_map = {labels[i]: i % len(sns.color_palette()) for i in range(len(labels))}
+        color_map = collections.defaultdict(lambda: None)
     for k in color_map.keys():
         if isinstance(color_map[k], int):
             color_map[k] = sns.color_palette()[color_map[k]]
