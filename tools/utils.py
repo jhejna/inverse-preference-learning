@@ -357,7 +357,7 @@ class Experiment(dict):
                     name = name[:-1]
 
                 # Add the basename
-                if len(self.bases) > 0:
+                if len(self.bases) > 1:
                     name = os.path.join(os.path.splitext(os.path.basename(base_config))[0], name)
                 # Add the experiment name
                 name = os.path.join(self.name, name)
