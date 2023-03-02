@@ -3,6 +3,7 @@
 alg: IHLearnOnline
 alg_kwargs:
   tau: 0.005
+  learn_temperature: False
   init_temperature: 0.1
   target_freq: 2
   bc_coeff: 0.0
@@ -19,6 +20,8 @@ alg_kwargs:
 
 optim: Adam
 optim_kwargs:
+  actor:
+    lr: 0.00003
   lr: 0.0003
 
 network: ActorCriticPolicy

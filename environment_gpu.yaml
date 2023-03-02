@@ -1,4 +1,4 @@
-name: few-shot-pref-rl
+name: ih-learn
 channels:
   - pytorch-nightly
   - nvidia

@@ -20,9 +20,10 @@ class IHLearnOnline(OffPolicyAlgorithm):
         *args,
         tau: float = 0.005,
         init_temperature: float = 0.1,
-        env_freq: int = 1,
         target_freq: int = 2,
         bc_coeff=0.0,
+        learn_temperature: bool = True,
+        target_entropy: Optional[float] = None,
         # all of the other kwargs for reward
         reward_freq: int = 5000,
         max_feedback: int = 1000,
@@ -38,6 +39,7 @@ class IHLearnOnline(OffPolicyAlgorithm):
     ):
         # Save values needed for optim setup.
         self.init_temperature = init_temperature
+        self.learn_temperature = learn_temperature
         super().__init__(*args, **kwargs)
         assert isinstance(self.network, ActorCriticPolicy)
 
@@ -45,7 +47,9 @@ class IHLearnOnline(OffPolicyAlgorithm):
         self.tau = tau
         self.target_freq = target_freq
         self.bc_coeff = bc_coeff
-        self.target_entropy = -np.prod(self.processor.action_space.low.shape)
+        self.target_entropy = (
+            -np.prod(self.processor.action_space.low.shape) if target_entropy is None else -target_entropy
+        )
         self.action_range = [
             float(self.processor.action_space.low.min()),
             float(self.processor.action_space.high.max()),
@@ -92,17 +96,33 @@ class IHLearnOnline(OffPolicyAlgorithm):
         for param in self.target_network.parameters():
             param.requires_grad = False
 
-        # Setup the log alpha
         log_alpha = torch.tensor(np.log(self.init_temperature), dtype=torch.float).to(self.device)
-        self.log_alpha = torch.nn.Parameter(log_alpha, requires_grad=True)
+        self.log_alpha = torch.nn.Parameter(log_alpha, requires_grad=self.learn_temperature)
 
     def setup_optimizers(self) -> None:
         # Default optimizer initialization
-        self.optim["actor"] = self.optim_class(self.network.actor.parameters(), **self.optim_kwargs)
+        keys = ("actor", "critic", "log_alpha")
+        default_kwargs = {}
+        for key, value in self.optim_kwargs.items():
+            if key not in keys:
+                default_kwargs[key] = value
+            else:
+                assert isinstance(value, dict), "Special keys must be kwarg dicts"
+
+        actor_kwargs = default_kwargs.copy()
+        actor_kwargs.update(self.optim_kwargs.get("actor", dict()))
+        self.optim["actor"] = self.optim_class(self.network.actor.parameters(), **actor_kwargs)
+
         # Update the encoder with the critic.
         critic_params = itertools.chain(self.network.critic.parameters(), self.network.encoder.parameters())
-        self.optim["critic"] = self.optim_class(critic_params, **self.optim_kwargs)
-        self.optim["log_alpha"] = self.optim_class([self.log_alpha], **self.optim_kwargs)
+        critic_kwargs = default_kwargs.copy()
+        critic_kwargs.update(self.optim_kwargs.get("critic", dict()))
+        self.optim["critic"] = self.optim_class(critic_params, **critic_kwargs)
+
+        if self.learn_temperature:
+            log_alpha_kwargs = default_kwargs.copy()
+            log_alpha_kwargs.update(self.optim_kwargs.get("log_alpha", dict()))
+            self.optim["log_alpha"] = self.optim_class([self.log_alpha], **log_alpha_kwargs)
 
     def setup_train_dataset(self) -> None:
         super().setup_train_dataset()
@@ -291,10 +311,11 @@ class IHLearnOnline(OffPolicyAlgorithm):
         entropy = -log_prob.mean()
 
         # Update the learned temperature
-        self.optim["log_alpha"].zero_grad(set_to_none=True)
-        alpha_loss = (self.alpha * (-log_prob - self.target_entropy).detach()).mean()
-        alpha_loss.backward()
-        self.optim["log_alpha"].step()
+        if self.learn_temperature:
+            self.optim["log_alpha"].zero_grad(set_to_none=True)
+            alpha_loss = (self.alpha * (-log_prob - self.target_entropy).detach()).mean()
+            alpha_loss.backward()
+            self.optim["log_alpha"].step()
 
         # update the metrics
         all_metrics.update(
@@ -303,7 +324,6 @@ class IHLearnOnline(OffPolicyAlgorithm):
                 chi2_loss=chi2_loss.item(),
                 actor_loss=actor_loss.item(),
                 entropy=entropy.item(),
-                alpha_loss=alpha_loss.item(),
                 alpha=self.alpha.detach().item(),
                 adv=r1.mean().item(),
             )
