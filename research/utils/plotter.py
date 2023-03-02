@@ -190,7 +190,7 @@ def plot_from_config(config_path: str) -> None:
     figsize = (2 * grid_shape[1], grid_shape[0]) if config.get("fig_size") is None else config.get("fig_size")
 
     legend_pos = config.get("legend_pos")
-    assert legend_pos in {"first", "last", "bottom", None}
+    assert legend_pos in {"first", "last", "bottom", "all", None}
     if legend_pos == "first":
         legend_index = 0
     elif legend_pos == "last":
@@ -219,7 +219,7 @@ def plot_from_config(config_path: str) -> None:
             ax.set_ylabel(None)
         if y_index != grid_shape[0] - 1 and not use_xlabels:
             ax.set_xlabel(None)
-        if i != legend_index and legend_pos is not None:
+        if i != legend_index and legend_pos != "all":
             ax.get_legend().remove()
         else:
             ax.legend(frameon=False)
