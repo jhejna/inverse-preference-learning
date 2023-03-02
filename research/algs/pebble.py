@@ -9,7 +9,7 @@ import imageio
 import numpy as np
 import torch
 
-from research.datasets.feedback_buffer import FeedbackLabelDataset
+from research.datasets.feedback_buffer import PairwiseComparisonDataset
 from research.datasets.replay_buffer import ReplayBuffer
 from research.networks.base import ActorCriticRewardPolicy
 from research.processors.normalization import RunningMeanStd
@@ -143,7 +143,7 @@ class PEBBLE(OffPolicyAlgorithm):
         assert isinstance(self.dataset, ReplayBuffer), "Must use replay buffer for PEBBLE"
         assert self.dataset.distributed == False, "Cannot use distributed replay buffer with PEBBLE"
         # Note that the dataloader for the reward model runs on a single thread!
-        self.feedback_dataset = FeedbackLabelDataset(
+        self.feedback_dataset = PairwiseComparisonDataset(
             self.env.observation_space,
             self.env.action_space,
             discount=self.dataset.discount,

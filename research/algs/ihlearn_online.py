@@ -1,13 +1,12 @@
 import itertools
-import os
-from typing import Any, Dict, Optional, Tuple, Type, Union
+from typing import Any, Dict, Optional, Tuple, Type
 
 import gym
 import imageio
 import numpy as np
 import torch
 
-from research.datasets.feedback_buffer import FeedbackLabelDataset
+from research.datasets.feedback_buffer import PairwiseComparisonDataset
 from research.datasets.replay_buffer import ReplayBuffer
 from research.networks.base import ActorCriticPolicy
 from research.utils.utils import to_device, to_tensor
@@ -77,7 +76,6 @@ class IHLearnOnline(OffPolicyAlgorithm):
         self._skipped_queries = 0
         self._correct_queries = 0
 
-
     @property
     def alpha(self) -> torch.Tensor:
         return self.log_alpha.exp()
@@ -98,7 +96,6 @@ class IHLearnOnline(OffPolicyAlgorithm):
         log_alpha = torch.tensor(np.log(self.init_temperature), dtype=torch.float).to(self.device)
         self.log_alpha = torch.nn.Parameter(log_alpha, requires_grad=True)
 
-
     def setup_optimizers(self) -> None:
         # Default optimizer initialization
         self.optim["actor"] = self.optim_class(self.network.actor.parameters(), **self.optim_kwargs)
@@ -107,13 +104,12 @@ class IHLearnOnline(OffPolicyAlgorithm):
         self.optim["critic"] = self.optim_class(critic_params, **self.optim_kwargs)
         self.optim["log_alpha"] = self.optim_class([self.log_alpha], **self.optim_kwargs)
 
-
     def setup_train_dataset(self) -> None:
         super().setup_train_dataset()
         assert isinstance(self.dataset, ReplayBuffer), "Must use replay buffer for PEBBLE"
         assert self.dataset.distributed == False, "Cannot use distributed replay buffer with PEBBLE"
         # Note that the dataloader for the reward model runs on a single thread!
-        self.feedback_dataset = FeedbackLabelDataset(
+        self.feedback_dataset = PairwiseComparisonDataset(
             self.env.observation_space,
             self.env.action_space,
             discount=self.dataset.discount,
@@ -121,7 +117,7 @@ class IHLearnOnline(OffPolicyAlgorithm):
             segment_size=self.segment_size,
             subsample_size=self.subsample_size,
             capacity=self.max_feedback + 1,
-            batch_size=self.reward_batch_size
+            batch_size=self.reward_batch_size,
         )
         self.feedback_dataloader = torch.utils.data.DataLoader(
             self.feedback_dataset, batch_size=None, num_workers=0, pin_memory=(self.device.type == "cuda")
@@ -204,7 +200,6 @@ class IHLearnOnline(OffPolicyAlgorithm):
             # pare down the batch by the topk index
             queries = {k: v[top_k_index] for k, v in queries.items()}
 
-        
         labels, metrics = self._oracle_label(queries)
 
         feedback_added = labels.shape[0]
@@ -228,7 +223,6 @@ class IHLearnOnline(OffPolicyAlgorithm):
 
         self.feedback_dataset.add(queries, labels)
         return metrics
-
 
     def train_step(self, batch: Dict, step: int, total_steps: int) -> Dict:
         all_metrics = {}
@@ -264,7 +258,7 @@ class IHLearnOnline(OffPolicyAlgorithm):
         labels = feedback_batch["label"].float().unsqueeze(0).expand(logits.shape[0], -1)  # Shape (E, B)
         assert labels.shape == logits.shape
         q_loss = self.reward_criterion(logits, labels).mean(dim=-1).sum(dim=0)  # Average on B, sum on E
-        
+
         chi2_loss = (
             1 / (8 * self.chi2_coeff) * ((r1**2).mean() + (r2**2).mean())
         )  # Turn 1/4 to 1/8 because we sum over both.
