@@ -265,11 +265,9 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
             _current_data_generator: the offline data generator
             _loaded_all_offline_data: set to True if we don't need to load more offline data
         """
-
         worker_info = torch.utils.data.get_worker_info()
         num_workers = 1 if worker_info is None else worker_info.num_workers
         worker_id = 0 if worker_info is None else worker_info.id
-        self._is_serial = worker_info is None
         self._current_data_generator = self._data_generator()
 
         if self.capacity is not None:
@@ -350,7 +348,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
             discount = 1.0
 
         # Now we have multiple cases based on the transition type and parallelism of the dataset
-        if not hasattr(self, "_is_serial") or self._is_serial:
+        if not self.distributed:
             # We can add directly to the storage buffers.
             self._add_to_buffer(obs, action, reward, done, discount, **kwargs)
             if self.cleanup:
@@ -521,13 +519,15 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         assert not hasattr(self, "_iterated"), "__iter__ called twice!"
         self._iterated = True
         if self.distributed:
-            # Allocate the buffer here.
+            # Allocate the buffer here if we are distributing across workers.
             self._alloc()
 
         # Setup variables for _fetch methods for getting new online data
         worker_info = torch.utils.data.get_worker_info()
         self._num_workers = worker_info.num_workers if worker_info is not None else 1
         self._worker_id = worker_info.id if worker_info is not None else 0
+        assert self.distributed == worker_info is not None, "ReplayBuffer.distributed set incorrectly."
+
         self._episode_filenames = set()
         self._samples_since_last_load = 0
         self._learning_online = False
@@ -540,7 +540,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
                     # Fetch offline data
                     if not self._loaded_all_offline_data and not self._learning_online:
                         self._fetch_offline()
-                    if not self._is_serial:  # Do not fetch online data if we are immediately adding to buffer
+                    if self.distributed:  # If we are distributed we need to fetch the data.
                         fetch_size = self._fetch_online()
                         self._learning_online = fetch_size > 0
                     # Reset the fetch counter for this worker.

@@ -75,12 +75,10 @@ if __name__ == "__main__":
         env = config.get_eval_env()  # Get the eval env instead as it actually exists.
 
     capacity = (env._max_episode_steps + 2) * args.num_ep if args.num_ep < np.inf else args.num_steps
-    capacity = 10 if args.shard else capacity  # Set capacity to a small value if we are saving eps to disk directly.
+    capacity = None if args.shard else capacity  # Set capacity to a small value if we are saving eps to disk directly.
     replay_buffer = ReplayBuffer(
         env.observation_space, env.action_space, capacity=capacity, cleanup=not args.shard, distributed=args.shard
     )
-    if args.shard:
-        replay_buffer._alloc()
 
     # Track data collection
     num_steps = 0
