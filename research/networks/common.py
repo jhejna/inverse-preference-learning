@@ -65,26 +65,26 @@ class LinearEnsemble(nn.Module):
         self.in_features = in_features
         self.out_features = out_features
         self.ensemble_size = ensemble_size
-        self.weight = torch.empty((ensemble_size, in_features, out_features), **factory_kwargs)
+        self.weight = nn.Parameter(torch.empty((ensemble_size, in_features, out_features), **factory_kwargs))
         if bias:
-            self.bias = torch.empty((ensemble_size, 1, out_features), **factory_kwargs)
+            self.bias = nn.Parameter(torch.empty((ensemble_size, 1, out_features), **factory_kwargs))
         else:
             self.register_parameter("bias", None)
         self.reset_parameters()
 
     def reset_parameters(self) -> None:
-        # Hack to make sure initialization is correct. This shouldn't be too bad though
-        for w in self.weight:
-            w.transpose_(0, 1)
-            nn.init.kaiming_uniform_(w, a=math.sqrt(5))
-            w.transpose_(0, 1)
-        self.weight = nn.Parameter(self.weight)
-
+        # The default torch init for Linear is a complete mess
+        # https://github.com/pytorch/pytorch/issues/57109
+        # If we use the same init, we will end up scaling incorrectly
+        # 1. Compute the fan in of the 2D tensor = dim 1 of 2D matrix (0 index)
+        # 2. Comptue the gain with param=math.sqrt(5.0)
+        #   This returns math.sqrt(2.0 / 6.0) = sqrt(1/3)
+        # 3. Compute std = gain / math.sqrt(fan) = sqrt(1/3) / sqrt(in).
+        # 4. Compute bound as math.sqrt(3.0) * std = 1 / in di
+        std = 1.0 / math.sqrt(self.in_features)
+        nn.init.uniform_(self.weight, -std, std)
         if self.bias is not None:
-            fan_in, _ = nn.init._calculate_fan_in_and_fan_out(self.weight[0].T)
-            bound = 1 / math.sqrt(fan_in)
-            nn.init.uniform_(self.bias, -bound, bound)
-            self.bias = nn.Parameter(self.bias)
+            nn.init.uniform_(self.bias, -std, std)
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         if len(input.shape) == 2:

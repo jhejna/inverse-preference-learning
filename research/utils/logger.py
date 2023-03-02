@@ -51,24 +51,38 @@ class TensorBoardWriter(Writer):
 class CSVWriter(Writer):
     def __init__(self, path, on_eval=True):
         super().__init__(path, on_eval=on_eval)
+        self._csv_path = os.path.join(self.path, "log.csv")
         self._csv_file_handler = None
         self.csv_logger = None
         self.num_keys = 0
 
-    def _reset_csv_handler(self):
+        # If we are continuing to train, make sure that we know how many keys to expect.
+        if os.path.exists(self._csv_path):
+            with open(path, "r") as f:
+                num_keys = len(csv.DictReader(f).fieldnames)
+            if num_keys > self.num_keys:
+                self.num_keys = num_keys
+            self._reset_csv_handler(mode="a")  # Create an append writer.
+
+    def _reset_csv_handler(self, mode="a"):
         if self._csv_file_handler is not None:
             self._csv_file_handler.close()  # Close our fds
-        self.csv_file_handler = open(os.path.join(self.path, "log.csv"), "a")
+        self.csv_file_handler = open(self._csv_path, mode)
         self.csv_logger = csv.DictWriter(self.csv_file_handler, fieldnames=list(self.values.keys()))
         self.csv_logger.writeheader()
 
     def _dump(self, step):
         # Record the step
         self.values["step"] = step
+        if len(self.values) < self.num_keys:
+            # We haven't gotten all keys yet, return without doing anything.
+            return
         if len(self.values) > self.num_keys:
             # Got a new key, so re-create the writer
             self.num_keys = len(self.values)
-            self._reset_csv_handler()
+            # We encountered a new key. We need to recreate the file handler and overwrite old data
+            self._reset_csv_handler(mode="w")
+
         # We should now have all the keys
         self.csv_logger.writerow(self.values)
         self.csv_file_handler.flush()
