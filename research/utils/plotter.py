@@ -103,7 +103,6 @@ def create_plot(
     for k in color_map.keys():
         if isinstance(color_map[k], int):
             color_map[k] = sns.color_palette()[color_map[k]]
-            print(color_map[k])
         elif isinstance(color_map[k], (tuple, list)):
             assert len(color_map[k]) == 3
             if isinstance(color_map[k][0], int):
