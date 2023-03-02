@@ -277,7 +277,7 @@ class IHLearnOnline(OffPolicyAlgorithm):
         logits = r2.sum(dim=2) - r1.sum(dim=2)  # Sum across sequence dim, (E, B)
         labels = feedback_batch["label"].float().unsqueeze(0).expand(logits.shape[0], -1)  # Shape (E, B)
         assert labels.shape == logits.shape
-        q_loss = self.reward_criterion(logits, labels).mean(dim=-1).sum(dim=0)  # Average on B, sum on E
+        q_loss = self.reward_criterion(logits, labels).mean()
 
         chi2_loss = (
             1 / (8 * self.chi2_coeff) * ((r1**2).mean() + (r2**2).mean())

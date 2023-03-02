@@ -163,14 +163,12 @@ class PEBBLE(OffPolicyAlgorithm):
             log_prob = dist.log_prob(next_action).sum(dim=-1)
             target_qs = self.target_network.critic(batch["next_obs"], next_action)
             target_v = torch.min(target_qs, dim=0)[0] - self.alpha.detach() * log_prob
-            reward = self.network.reward(batch["obs"], batch["action"]).mean(dim=0)  # Should be shape (B, 0)
+            reward = self.network.reward(batch["obs"], batch["action"]).mean(dim=0)  # Should be shape (B,)
             reward = self.reward_scale * reward + self.reward_shift
             target_q = reward + batch["discount"] * target_v
 
         qs = self.network.critic(batch["obs"], batch["action"])
-        q_loss = (
-            torch.nn.functional.mse_loss(qs, target_q.expand(qs.shape[0], -1), reduction="none").mean(dim=-1).sum()
-        )  # averages over the ensemble. No for loop!
+        q_loss = torch.nn.functional.mse_loss(qs, target_q.expand(qs.shape[0], -1), reduction="none").mean()
 
         self.optim["critic"].zero_grad(set_to_none=True)
         q_loss.backward()
@@ -445,12 +443,7 @@ class PEBBLE(OffPolicyAlgorithm):
         with torch.no_grad():
             z = self.network.encoder(batch["obs"])
             dist = self.network.actor(z)
-            if isinstance(dist, torch.distributions.Distribution):
-                action = dist.sample() if sample else dist.loc
-            elif torch.is_tensor(dist):
-                action = dist
-            else:
-                raise ValueError("Invalid policy output")
+            action = dist.sample() if sample else dist.loc
             action = action.clamp(*self.action_range)
             return action
 

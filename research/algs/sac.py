@@ -77,9 +77,7 @@ class SAC(OffPolicyAlgorithm):
             target_q = batch["reward"] + batch["discount"] * target_v
 
         qs = self.network.critic(batch["obs"], batch["action"])
-        q_loss = (
-            torch.nn.functional.mse_loss(qs, target_q.expand(qs.shape[0], -1), reduction="none").mean(dim=-1).sum()
-        )  # averages over the ensemble. No for loop!
+        q_loss = torch.nn.functional.mse_loss(qs, target_q.expand(qs.shape[0], -1), reduction="none").mean()
 
         self.optim["critic"].zero_grad(set_to_none=True)
         q_loss.backward()
@@ -154,12 +152,7 @@ class SAC(OffPolicyAlgorithm):
         with torch.no_grad():
             z = self.network.encoder(batch["obs"])
             dist = self.network.actor(z)
-            if isinstance(dist, torch.distributions.Distribution):
-                action = dist.sample() if sample else dist.loc
-            elif torch.is_tensor(dist):
-                action = dist
-            else:
-                raise ValueError("Invalid policy output")
+            action = dist.sample() if sample else dist.loc
             action = action.clamp(*self.action_range)
             return action
 
