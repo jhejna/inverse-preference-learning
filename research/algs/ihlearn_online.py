@@ -159,7 +159,7 @@ class IHLearnOnline(OffPolicyAlgorithm):
         qs = self.network.critic(obs, action)
         with torch.no_grad():
             dist = self.network.actor(next_obs)
-            next_action = dist.rsample()
+            next_action = dist.sample()
             next_vs = self.target_network.critic(next_obs, next_action)
         reward = qs - self.dataset.discount * next_vs
         # view reward again in the correct shape
@@ -299,7 +299,7 @@ class IHLearnOnline(OffPolicyAlgorithm):
         action = dist.rsample()
         log_prob = dist.log_prob(action).sum(dim=-1)
         qs = self.network.critic(obs, action)
-        q = torch.min(qs, dim=0)[0]
+        q = torch.mean(qs, dim=0)[0]  # Note: changed to mean from min.
         actor_loss = (self.alpha.detach() * log_prob - q).mean()
         if self.bc_coeff > 0.0:
             bc_loss = -dist.log_prob(batch["action"]).sum(dim=-1).mean()  # Simple NLL loss.

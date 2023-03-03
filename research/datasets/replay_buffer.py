@@ -526,7 +526,7 @@ class ReplayBuffer(torch.utils.data.IterableDataset):
         worker_info = torch.utils.data.get_worker_info()
         self._num_workers = worker_info.num_workers if worker_info is not None else 1
         self._worker_id = worker_info.id if worker_info is not None else 0
-        assert self.distributed == worker_info is not None, "ReplayBuffer.distributed set incorrectly."
+        assert self.distributed == (worker_info is not None), "ReplayBuffer.distributed set incorrectly."
 
         self._episode_filenames = set()
         self._samples_since_last_load = 0

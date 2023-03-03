@@ -20,8 +20,6 @@ alg_kwargs:
 
 optim: Adam
 optim_kwargs:
-  actor:
-    lr: 0.00003
   lr: 0.0003
 
 network: ActorCriticPolicy
