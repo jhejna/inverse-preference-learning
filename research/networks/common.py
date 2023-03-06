@@ -1,5 +1,5 @@
 import math
-from typing import List, Optional, Type, Union
+from typing import List, Optional, Tuple, Type, Union
 
 import torch
 from torch import nn
@@ -50,8 +50,8 @@ class LinearEnsemble(nn.Module):
         self,
         in_features: int,
         out_features: int,
-        bias: bool = True,
         ensemble_size: int = 3,
+        bias: bool = True,
         device: Optional[Union[str, torch.device]] = None,
         dtype: Optional[torch.dtype] = None,
     ):
@@ -99,17 +99,61 @@ class LinearEnsemble(nn.Module):
         )
 
 
-class EnsemblePermuter(nn.Module):
-    def __init__(self, layer_class, *layer_args, **layer_kwargs):
-        super().__init__()
-        self.layer = layer_class(*layer_args, **layer_kwargs)
+class LayerNormEnsemble(nn.Module):
+    """
+    This is a re-implementation of the Pytorch nn.LayerNorm module with suport for the Ensemble dim.
+    We need this custom class since we need to normalize over normalize dims, but have multiple weight/bais
+    parameters for the ensemble.
 
-    def forward(self, x):
-        # permute the dimensions so it is (B, E, ...) instead of (E, B, ...)
-        x = x.transpose(0, 1)
-        x = self.layer(x)
-        x = x.transpose(0, 1)
+    """
+
+    __constants__ = ["normalized_shape", "eps", "elementwise_affine"]
+    normalized_shape: Tuple[int, ...]
+    eps: float
+    elementwise_affine: bool
+
+    def __init__(
+        self,
+        normalized_shape: int,
+        ensemble_size: int = 3,
+        eps: float = 1e-5,
+        elementwise_affine: bool = True,
+        device=None,
+        dtype=None,
+    ) -> None:
+        factory_kwargs = {"device": device, "dtype": dtype}
+        super().__init__()
+        assert isinstance(normalized_shape, int), "Currently EnsembleLayerNorm only supports final dim int shapes."
+        self.normalized_shape = (normalized_shape,)
+        self.eps = eps
+        self.elementwise_affine = elementwise_affine
+        self.ensemble_size = ensemble_size
+        if self.elementwise_affine:
+            self.weight = nn.Parameter(torch.empty((self.ensemble_size, 1) + self.normalized_shape, **factory_kwargs))
+            self.bias = nn.Parameter(torch.empty((self.ensemble_size, 1) + self.normalized_shape, **factory_kwargs))
+        else:
+            self.register_parameter("weight", None)
+            self.register_parameter("bias", None)
+
+        self.reset_parameters()
+
+    def reset_parameters(self) -> None:
+        if self.elementwise_affine:
+            nn.init.ones_(self.weight)
+            nn.init.zeros_(self.bias)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if len(x.shape) == 2:
+            x = x.repeat(self.ensemble_size, 1, 1)
+        elif len(x.shape) > 3:
+            raise ValueError("LayerNormEnsemble layer does not support inputs with more than 3 dimensions.")
+        x = F.layer_norm(x, self.normalized_shape, None, None, self.eps)  # (E, B, *normalized shape)
+        if self.elementwise_affine:
+            x = x * self.weight + self.bias
         return x
+
+    def extra_repr(self) -> str:
+        return "{normalized_shape}, eps={eps}, elementwise_affine={elementwise_affine}".format(**self.__dict__)
 
 
 class EnsembleMLP(nn.Module):
@@ -130,7 +174,7 @@ class EnsembleMLP(nn.Module):
         """
         super().__init__()
         # Change the normalization type to work over ensembles
-        assert normalization is None or normalization is nn.LayerNorm, "Ensemble only supports layer norm"
+        assert normalization is None or normalization is LayerNormEnsemble, "Ensemble only support EnsembleLayerNorm"
         net = []
         last_dim = input_dim
         for dim in hidden_layers:
@@ -138,7 +182,7 @@ class EnsembleMLP(nn.Module):
             if dropout > 0.0:
                 net.append(nn.Dropout(dropout))
             if normalization is not None:
-                net.append(EnsemblePermuter(normalization, (ensemble_size, dim)))
+                net.append(normalization(dim, ensemble_size=ensemble_size))
             net.append(act())
             last_dim = dim
         net.append(LinearEnsemble(last_dim, output_dim, ensemble_size=ensemble_size))
