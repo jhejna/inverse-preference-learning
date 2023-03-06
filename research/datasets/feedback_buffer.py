@@ -36,7 +36,7 @@ class PairwiseComparisonDataset(torch.utils.data.IterableDataset):
             assert path is not None, "If capacity is not given, must have path to load from"
             with open(path, "rb") as f:
                 data = np.load(f)
-            data = utils.nest_dict(data)
+                data = utils.nest_dict(data)
             # Set the buffers to be the stored data. Woot woot.
             self.obs_1_buffer = data["obs_1"]
             self.obs_2_buffer = data["obs_2"]
@@ -61,7 +61,7 @@ class PairwiseComparisonDataset(torch.utils.data.IterableDataset):
                 assert path is not None, "If capacity is not given, must have path to load from"
                 with open(path, "rb") as f:
                     data = np.load(f)
-                data = utils.nest_dict(data)
+                    data = utils.nest_dict(data)
                 self.add(data, data["label"])  # Add to the buffer via the add method!
 
         # Print the size of the allocation.
@@ -110,8 +110,7 @@ class PairwiseComparisonDataset(torch.utils.data.IterableDataset):
             action_2 = self.action_2_buffer[idxs, start:end]
             label = self.label_buffer[idxs]
 
-        discount = self.discount if isinstance(label, float) else self.discount * np.ones_like(label)
-        return dict(obs_1=obs_1, obs_2=obs_2, action_1=action_1, action_2=action_2, label=label, discount=discount)
+        return dict(obs_1=obs_1, obs_2=obs_2, action_1=action_1, action_2=action_2, label=label, discount=self.discount)
 
     def save(self, path):
         # Save everything to the path via savez

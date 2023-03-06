@@ -1,0 +1,10 @@
+{
+    "base": "configs/3_3/pref_iql.yaml",
+    "paired_keys": [
+    ],
+    "eval_env": ["mw_drawer-open-v2"],
+    "alg_kwargs.beta": [0.25],
+    "alg_kwargs.expectile": [0.7],
+    "dataset_kwargs.path": ["../datasets/ihlearn/metaworld_compare/drawer-open_bias-onlywithin_eps-1.0_10k.npz", "../datasets/ihlearn/metaworld_compare/drawer-open_bias-onlywithin_eps-1.0_20k.npz"],
+    "seed": [0]
+}

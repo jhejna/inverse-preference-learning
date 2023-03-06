@@ -78,3 +78,14 @@ python tools/run_slurm.py --partition <partition> --cpus 1 --mem 4G --job-name p
 Then, train the MAML models using the provided configs after modifying them to include the dataset path.
 
 Finally, our models can be trained by editting the sweep files to include the trained MAML checkpoint.
+
+
+## Dataset Commands
+For MetaWorld Initial Tests:
+```
+python scripts/create_metaworld_dataset.py --env drawer-open-v2 --expert-ep 100 --within-env-ep 100 --cross-env-ep 100 --random-ep 100 --epsilon 0.5 --path ../datasets/ihlearn/metaworld/drawer-open_split-100-even_eps-0.5
+```
+Then, run conversions:
+```
+python scripts/create_pairwise_comparison_dataset.py --env mw_drawer-open-v2 --path ../datasets/ihlearn/metaworld/drawer-open_split-100-even_eps-0.5/ --output ../datasets/ihlearn/metaworld_compare/drawer-open_split-100-even_eps-0.5.npz --capacity 25000 --segment-size 25 --discount 0.99
+```

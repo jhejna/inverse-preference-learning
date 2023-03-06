@@ -35,6 +35,7 @@ class IHLearnOnline(OffPolicyAlgorithm):
         chi2_coeff: float = 0.5,
         feedback_schedule: str = "constant",
         num_uniform_feedback: int = 0,
+        use_min_target: bool = False,
         **kwargs,
     ):
         # Save values needed for optim setup.
@@ -71,6 +72,7 @@ class IHLearnOnline(OffPolicyAlgorithm):
         self.reward_criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
         self.chi2_coeff = chi2_coeff
         self.subsample_size = subsample_size
+        self.use_min_target = use_min_target
 
         # Initialize parameters
         self._total_feedback = 0
@@ -161,6 +163,8 @@ class IHLearnOnline(OffPolicyAlgorithm):
             dist = self.network.actor(next_obs)
             next_action = dist.sample()
             next_vs = self.target_network.critic(next_obs, next_action)
+            if self.use_min_target:
+                next_vs = torch.min(next_vs, dim=0)[0].unsqueeze(0)
         reward = qs - self.dataset.discount * next_vs
         # view reward again in the correct shape
         E, B_times_S = reward.shape

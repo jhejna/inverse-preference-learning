@@ -108,7 +108,7 @@ class IHLearnSACOffline(Algorithm):
         with torch.no_grad():
             dist = self.network.actor(next_obs.detach())
             next_action = dist.sample()
-            next_vs = self.target_network.critic(next_obs, next_action)
+            next_vs = self.target_network.critic(next_obs, next_action).min(dim=0)[0]
         reward = qs - batch["discount"] * next_vs
         # view reward again in the correct shape
         E, B_times_S = reward.shape
@@ -182,7 +182,6 @@ class IHLearnAWAC(Algorithm):
         *args,
         tau: float = 0.005,
         target_freq: int = 1,
-        expectile: Optional[float] = None,
         beta: float = 1,
         clip_score: float = 100.0,
         chi2_coeff: float = 0.5,
@@ -192,7 +191,6 @@ class IHLearnAWAC(Algorithm):
         assert isinstance(self.network, ActorCriticPolicy)
         self.tau = tau
         self.target_freq = target_freq
-        self.expectile = expectile
         self.beta = beta
         self.clip_score = clip_score
         self.action_range = [
@@ -251,7 +249,7 @@ class IHLearnAWAC(Algorithm):
         with torch.no_grad():
             dist = self.network.actor(next_obs.detach())
             next_action = dist.sample() if isinstance(dist, torch.distributions.Distribution) else dist
-            next_vs = self.target_network.critic(next_obs, next_action)
+            next_vs = self.target_network.critic(next_obs, next_action).min(dim=0)[0]
         reward = qs - batch["discount"] * next_vs
         # view reward again in the correct shape
         E, B_times_S = reward.shape
@@ -272,7 +270,7 @@ class IHLearnAWAC(Algorithm):
         (q_loss + chi2_loss).backward()
         self.optim["critic"].step()
 
-        dist = self.network.actor(batch["obs"])  # Use encoder gradients for the actor.
+        dist = self.network.actor(obs)  # Use encoder gradients for the actor.
 
         # We need to compute the advantage, which is equal to Q(s,a) - V(s) = Q(s,a) - Q(s,pi(s))
         with torch.no_grad():
@@ -285,8 +283,8 @@ class IHLearnAWAC(Algorithm):
         if isinstance(dist, torch.distributions.Distribution):
             bc_loss = -dist.log_prob(action).sum(dim=-1)
         elif torch.is_tensor(dist):
-            assert dist.shape == batch["action"].shape
-            bc_loss = torch.nn.functional.mse_loss(dist, batch["action"], reduction="none").sum(dim=-1)
+            assert dist.shape == action.shape
+            bc_loss = torch.nn.functional.mse_loss(dist, action, reduction="none").sum(dim=-1)
         else:
             raise ValueError("Invalid policy output provided")
         actor_loss = (exp_adv * bc_loss).mean()
@@ -310,6 +308,7 @@ class IHLearnAWAC(Algorithm):
 
         return dict(
             q_loss=q_loss.item(),
+            chi2_loss=chi2_loss.item(),
             actor_loss=actor_loss.item(),
             q=qs.mean().item(),
             adv=adv.mean().item(),
