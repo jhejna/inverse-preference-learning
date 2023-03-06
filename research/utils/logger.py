@@ -58,16 +58,20 @@ class CSVWriter(Writer):
 
         # If we are continuing to train, make sure that we know how many keys to expect.
         if os.path.exists(self._csv_path):
-            with open(path, "r") as f:
-                num_keys = len(csv.DictReader(f).fieldnames)
+            with open(self._csv_path, "r") as f:
+                reader = csv.DictReader(f)
+                fieldnames = reader.fieldnames.copy()
+                num_keys = len(fieldnames)
             if num_keys > self.num_keys:
                 self.num_keys = num_keys
-            self._reset_csv_handler(mode="a")  # Create an append writer.
+                # Create a new CSV handler with the fieldnames set.
+                self.csv_file_handler = open(self._csv_path, "a")
+                self.csv_logger = csv.DictWriter(self.csv_file_handler, fieldnames=list(fieldnames))
 
-    def _reset_csv_handler(self, mode="a"):
+    def _reset_csv_handler(self):
         if self._csv_file_handler is not None:
             self._csv_file_handler.close()  # Close our fds
-        self.csv_file_handler = open(self._csv_path, mode)
+        self.csv_file_handler = open(self._csv_path, "w")  # Write a new one
         self.csv_logger = csv.DictWriter(self.csv_file_handler, fieldnames=list(self.values.keys()))
         self.csv_logger.writeheader()
 
@@ -81,7 +85,7 @@ class CSVWriter(Writer):
             # Got a new key, so re-create the writer
             self.num_keys = len(self.values)
             # We encountered a new key. We need to recreate the file handler and overwrite old data
-            self._reset_csv_handler(mode="w")
+            self._reset_csv_handler()
 
         # We should now have all the keys
         self.csv_logger.writerow(self.values)
