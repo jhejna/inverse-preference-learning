@@ -1,5 +1,5 @@
 import itertools
-from typing import Any, Dict, Optional, Tuple, Type
+from typing import Any, Dict, Optional, Type
 
 import gym
 import imageio
@@ -91,11 +91,10 @@ class IHLearnSACOffline(Algorithm):
             log_alpha_kwargs.update(self.optim_kwargs.get("log_alpha", dict()))
             self.optim["log_alpha"] = self.optim_class([self.log_alpha], **log_alpha_kwargs)
 
-    
     def train_step(self, batch: Dict, step: int, total_steps: int) -> Dict:
         obs = torch.cat([batch["obs_1"], batch["obs_2"]], dim=0)  # (B, S+1)
         action = torch.cat([batch["action_1"], batch["action_2"]], dim=0)  # (B, S+1)
-        obs = self.network.encoder(obs) # Encode all the observations.
+        obs = self.network.encoder(obs)  # Encode all the observations.
 
         # Compute shapes and add everything to the batch dimension
         B, S = obs.shape[:2]
@@ -118,7 +117,6 @@ class IHLearnSACOffline(Algorithm):
         reward = reward.view(E, B, S)
         r1, r2 = torch.chunk(reward, 2, dim=1)  # Should return two (E, B, S)
         logits = r2.sum(dim=2) - r1.sum(dim=2)  # Sum across sequence dim, (E, B)
-
 
         labels = batch["label"].float().unsqueeze(0).expand(logits.shape[0], -1)  # Shape (E, B)
         assert labels.shape == logits.shape
@@ -162,13 +160,13 @@ class IHLearnSACOffline(Algorithm):
                     target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
 
         return dict(
-                q_loss=q_loss.item(),
-                chi2_loss=chi2_loss.item(),
-                actor_loss=actor_loss.item(),
-                entropy=entropy.item(),
-                alpha=self.alpha.detach().item(),
-                adv=r1.mean().item(),
-            )
+            q_loss=q_loss.item(),
+            chi2_loss=chi2_loss.item(),
+            actor_loss=actor_loss.item(),
+            entropy=entropy.item(),
+            alpha=self.alpha.detach().item(),
+            adv=r1.mean().item(),
+        )
 
     def _predict(self, batch: Any, sample: bool = False) -> torch.Tensor:
         with torch.no_grad():
@@ -177,4 +175,3 @@ class IHLearnSACOffline(Algorithm):
             action = dist.sample() if sample else dist.loc
             action = action.clamp(*self.action_range)
             return action
-

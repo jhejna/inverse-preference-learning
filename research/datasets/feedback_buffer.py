@@ -148,3 +148,50 @@ class PairwiseComparisonDataset(torch.utils.data.IterableDataset):
                 # Might be some overlap here but its probably OK.
                 cur_idxs = idxs[i * self.batch_size : min((i + 1) * self.batch_size, len(self))]
             yield self._sample(cur_idxs)
+
+
+class ReplayAndFeedbackBuffer(torch.utils.data.IterableDataset):
+    """
+    Dataset class that combines a replay buffer and a feedback buffer
+    This is used for IH Learn and Offline Learning
+    """
+
+    def __init__(
+        self,
+        observation_space: gym.Space,
+        action_space: gym.Space,
+        replay_class: torch.utils.data.IterableDataset = ReplayBuffer,
+        feedback_class: torch.utils.data.IterableDataset = PairwiseComparisonDataset,
+        replay_kwargs: Dict = {},
+        feedback_kwargs: Dict = {},
+        **kwargs,
+    ):
+        replay_kwargs = replay_kwargs.copy()
+        replay_kwargs.update(kwargs)
+        self.replay_buffer = replay_class(observation_space, action_space, **replay_kwargs)
+        feedback_kwargs = feedback_kwargs.copy()
+        feedback_kwargs.update(kwargs)
+        self.feedback_dataset = feedback_class(observation_space, action_space, **feedback_kwargs)
+
+    def __iter__(self):
+        # Yield one batch of each in a tuple per step.
+        replay_iter = iter(self.replay_buffer)
+        feedback_iter = iter(self.feedback_dataset)
+        current_feedback_size = len(self.feedback_dataset)
+
+        while True:
+            replay_data = next(replay_iter)  # Replay iter should be infinite
+            if len(self.feedback_dataset) > current_feedback_size:
+                # Check to see if the size of the feedback dataset has increased
+                # If so, recreate the iterator to fetch new data.
+                current_feedback_size = len(self.feedback_dataset)
+                del feedback_iter
+                feedback_iter = iter(self.feedback_dataset)
+
+            feedback_data = next(feedback_iter, None)
+            if feedback_data is None:
+                # Check once to re-add. If this is the first epoch, we may get None back.
+                feedback_iter = iter(self.feedback_dataset)
+                feedback_data = next(feedback_iter)
+
+            return replay_data, feedback_data

@@ -9,7 +9,7 @@ import torch
 from research.datasets.feedback_buffer import PairwiseComparisonDataset
 from research.datasets.replay_buffer import ReplayBuffer
 from research.networks.base import ActorCriticPolicy
-from research.utils.utils import to_device, to_tensor
+from research.utils import utils
 
 from .off_policy_algorithm import OffPolicyAlgorithm
 
@@ -22,9 +22,9 @@ class IHLearnOnline(OffPolicyAlgorithm):
         init_temperature: float = 0.1,
         target_freq: int = 2,
         bc_coeff=0.0,
-        learn_temperature: bool = True,
         target_entropy: Optional[float] = None,
         # all of the other kwargs for reward
+        use_soft_q: bool = True,
         reward_freq: int = 5000,
         max_feedback: int = 1000,
         init_feedback_size: int = 64,
@@ -39,7 +39,6 @@ class IHLearnOnline(OffPolicyAlgorithm):
     ):
         # Save values needed for optim setup.
         self.init_temperature = init_temperature
-        self.learn_temperature = learn_temperature
         super().__init__(*args, **kwargs)
         assert isinstance(self.network, ActorCriticPolicy)
 
@@ -54,6 +53,7 @@ class IHLearnOnline(OffPolicyAlgorithm):
             float(self.processor.action_space.low.min()),
             float(self.processor.action_space.high.max()),
         ]
+        self.use_soft_q = use_soft_q
 
         # Timing parameters
         self.reward_freq = reward_freq
@@ -74,11 +74,7 @@ class IHLearnOnline(OffPolicyAlgorithm):
 
         # Initialize parameters
         self._total_feedback = 0
-        self._saved_recent_visualizations = True
         self._last_feedback_step = None
-        # Extra metrics for human labeling
-        self._skipped_queries = 0
-        self._correct_queries = 0
 
     @property
     def alpha(self) -> torch.Tensor:
@@ -119,64 +115,20 @@ class IHLearnOnline(OffPolicyAlgorithm):
         critic_kwargs.update(self.optim_kwargs.get("critic", dict()))
         self.optim["critic"] = self.optim_class(critic_params, **critic_kwargs)
 
-        if self.learn_temperature:
-            log_alpha_kwargs = default_kwargs.copy()
-            log_alpha_kwargs.update(self.optim_kwargs.get("log_alpha", dict()))
-            self.optim["log_alpha"] = self.optim_class([self.log_alpha], **log_alpha_kwargs)
-
-    def setup_train_dataset(self) -> None:
-        super().setup_train_dataset()
-        assert isinstance(self.dataset, ReplayBuffer), "Must use replay buffer for PEBBLE"
-        assert self.dataset.distributed == False, "Cannot use distributed replay buffer with PEBBLE"
-        # Note that the dataloader for the reward model runs on a single thread!
-        self.feedback_dataset = PairwiseComparisonDataset(
-            self.env.observation_space,
-            self.env.action_space,
-            discount=self.dataset.discount,
-            nstep=self.dataset.nstep,
-            segment_size=self.segment_size,
-            subsample_size=self.subsample_size,
-            capacity=self.max_feedback + 1,
-            batch_size=self.reward_batch_size,
-        )
-        self.feedback_dataloader = torch.utils.data.DataLoader(
-            self.feedback_dataset, batch_size=None, num_workers=0, pin_memory=(self.device.type == "cuda")
-        )
-        self.feedback_iterator = iter(self.feedback_dataloader)
-
-    def _get_reward(self, batch: Dict) -> torch.Tensor:
-        obs = torch.cat([batch["obs_1"], batch["obs_2"]], dim=0)  # (B, S+1)
-        action = torch.cat([batch["action_1"], batch["action_2"]], dim=0)  # (B, S+1)
-        # Compute shapes and add everything to the batch dimension
-        B, S = obs.shape[:2]
-        S -= 1  # Subtract one for the next obs sequence.
-        flat_obs_shape = (B * S,) + obs.shape[2:]
-        flat_action_shape = (B * S,) + action.shape[2:]
-        next_obs = obs[:, 1:].reshape(flat_obs_shape)
-        obs = obs[:, :-1].reshape(flat_obs_shape)
-        action = action[:, :-1].reshape(flat_action_shape)
-
-        qs = self.network.critic(obs, action)
-        with torch.no_grad():
-            dist = self.network.actor(next_obs)
-            next_action = dist.rsample()
-            next_vs = self.target_network.critic(next_obs, next_action)
-        reward = qs - self.dataset.discount * next_vs
-        # view reward again in the correct shape
-        E, B_times_S = reward.shape
-        assert B_times_S == B * S, "Shapes were incorrect"
-        reward = reward.view(E, B, S)
-        r1, r2 = torch.chunk(reward, 2, dim=1)  # Should return two (E, B, S)
-        return r1, r2
+        log_alpha_kwargs = default_kwargs.copy()
+        log_alpha_kwargs.update(self.optim_kwargs.get("log_alpha", dict()))
+        self.optim["log_alpha"] = self.optim_class([self.log_alpha], **log_alpha_kwargs)
 
     def _oracle_label(self, batch: Dict) -> Tuple[np.ndarray, Dict]:
         label = 1.0 * (batch["reward_1"] < batch["reward_2"])
         return label, {}
 
     def _get_queries(self, batch_size):
-        batch = self.dataset.sample(batch_size=2 * batch_size, stack=self.segment_size, pad=0)
+        batch = self.dataset.replay_buffer.sample(batch_size=2 * batch_size, stack=self.segment_size, pad=0)
         # Compute the discounted reward across each segment to be used for oracle labels
-        returns = np.sum(batch["reward"] * np.power(self.dataset.discount, np.arange(batch["reward"].shape[1])), axis=1)
+        returns = np.sum(
+            batch["reward"] * np.power(self.dataset.replay_buffer.discount, np.arange(batch["reward"].shape[1])), axis=1
+        )
         segment_batch = dict(
             obs_1=batch["obs"][:batch_size],
             obs_2=batch["obs"][batch_size:],
@@ -185,13 +137,11 @@ class IHLearnOnline(OffPolicyAlgorithm):
             reward_1=returns[:batch_size],
             reward_2=returns[batch_size:],
         )
-        if "state" in batch:
-            segment_batch["state_1"] = batch["state"][:batch_size]
-            segment_batch["state_2"] = batch["state"][batch_size:]
         del batch  # ensure memory is freed
         return segment_batch
 
     def _collect_feedback(self, step, total_steps) -> Dict:
+        all_metrics = {}
         # Compute the amount of feedback to collect
         if self.feedback_schedule == "linear":
             batch_size = int(self.init_feedback_size * (total_steps - step) / total_steps)
@@ -209,45 +159,87 @@ class IHLearnOnline(OffPolicyAlgorithm):
         else:
             # Else, collect segments via disagreement
             queries = self._get_queries(batch_size=int(batch_size * self.feedback_sample_multiplier))
+            queries = utils.to_device(utils.to_tensor(queries), self.device)
             # Compute disagreement via the ensemble
             with torch.no_grad():
-                r1, r2 = self._get_reward(to_device(to_tensor(queries), self.device))
+                # We need to repeat the steps for reward computation with the network here
+                # see train_step for more comments
+                B_fb, S_fb = queries["obs_1"].shape[:2]
+                S_fb -= 1  # Subtract one for the next_obs offset
+                flat_obs_fb_shape = (B_fb * S_fb,) + queries["obs_1"].shape[2:]
+                flat_action_fb_shape = (B_fb * S_fb,) + queries["action_1"].shape[2:]
+
+                # Construct obs, action, next_obs batches
+                obs = torch.cat(
+                    [
+                        queries["obs_1"][:, :-1].view(*flat_obs_fb_shape),
+                        queries["obs_2"][:, :-1].view(*flat_obs_fb_shape),
+                    ],
+                    dim=0,
+                )
+                action = torch.cat(
+                    [
+                        queries["action_1"][:, :-1].view(*flat_action_fb_shape),
+                        queries["action_2"][:, :-1].view(*flat_action_fb_shape),
+                    ],
+                    dim=0,
+                )
+                next_obs = torch.cat(
+                    [
+                        queries["obs_1"][:, 1:].view(*flat_obs_fb_shape),
+                        queries["obs_2"][:, 1:].view(*flat_obs_fb_shape),
+                    ],
+                    dim=0,
+                )
+
+                # Apply Encoders
+                obs = self.network.encoder(obs)
+                next_obs = self.target_network.encoder(next_obs)
+
+                # Compute reward
+                qs = self.network.critic(obs, action)
+                dist = self.network.actor(next_obs)
+                next_action = dist.sample()
+                if self.use_soft_q:
+                    pass
+                else:
+                    # Ignore the soft valeus and min trick, just do this:
+                    next_vs = self.target_network.critic(next_obs, next_action)
+                reward = qs - self.dataset.replay_buffer.discount * next_vs
+                r1, r2 = reward.chunk(reward, 2, dim=1)  # Shape (E, B_fb * S_fb)
+                E, B_times_S = r1.shape
+                assert B_times_S == B_fb * S_fb
+
+                r1 = r1.view(E, B_fb, S_fb)
+                r2 = r2.view(E, B_fb, S_fb)
                 logits = r2.sum(dim=2) - r1.sum(dim=2)  # Sum across sequence dim
-                probs = torch.sigmoid(logits)
-                probs = probs.cpu().numpy()  # Shape (E, B)
+
+                probs = torch.sigmoid(logits).cpu().numpy()  # Shape (E, B)
+
             disagreement = np.std(probs, axis=0)  # Compute along the ensemble axis
             top_k_index = (-disagreement).argsort()[:batch_size]
             # pare down the batch by the topk index
             queries = {k: v[top_k_index] for k, v in queries.items()}
 
         labels, metrics = self._oracle_label(queries)
+        all_metrics.update(metrics)
 
         feedback_added = labels.shape[0]
         self._total_feedback += feedback_added
-        metrics["feedback"] = self._total_feedback
-        metrics["feedback_this_itr"] = feedback_added
+        all_metrics["feedback"] = self._total_feedback
+        all_metrics["feedback_this_itr"] = feedback_added
 
         if feedback_added == 0:
-            return metrics
+            return all_metrics
 
-        # Save the most recent queries for visualizations.
-        self._recent_feedback = (queries, labels)
-        self._saved_recent_visualizations = False
-
-        # If we use human labels we can skip queries. We thus need to filter out any skipped queries.
-        # This is done after updating metrics to insure that skipped queries are counted towards the total.
-        valid_idxs = labels != -1
-        if np.sum(valid_idxs) < labels.shape[0]:
-            queries = {k: v[valid_idxs] for k, v in queries.items()}
-            labels = labels[valid_idxs]
-
-        self.feedback_dataset.add(queries, labels)
-        return metrics
+        self.dataset.feedback_dataset.add(queries, labels)
+        return all_metrics
 
     def train_step(self, batch: Dict, step: int, total_steps: int) -> Dict:
         all_metrics = {}
+        replay_batch, feedback_batch = batch
 
-        if "obs" not in batch or step < self.random_steps:
+        if step < self.random_steps:
             return all_metrics
 
         if (
@@ -259,50 +251,98 @@ class IHLearnOnline(OffPolicyAlgorithm):
             # First collect feedback
             metrics = self._collect_feedback(step, total_steps)
             all_metrics.update(metrics)
-            # Delete and re-create the feedback iterator with new data.
-            del self.feedback_iterator
-            self.feedback_iterator = iter(self.feedback_dataloader)
-        elif len(self.feedback_dataset) == 0:
+
+        if "obs" not in replay_batch or feedback_batch is None:
             return all_metrics
 
-        feedback_batch = next(self.feedback_iterator, None)
-        if feedback_batch is None:
-            self.feedback_iterator = iter(self.feedback_dataloader)
-            feedback_batch = next(self.feedback_iterator, None)
+        # We need to assemble all of the observation, next observations, and their splits to compute reward values.
+        # First collect all the shapes
+        B_fb, S_fb = feedback_batch["obs_1"].shape[:2]
+        S_fb -= 1  # Subtract one for the next_obs offset
+        B_r = replay_batch["obs"].shape[0]
+        flat_obs_fb_shape = (B_fb * S_fb,) + replay_batch["obs"].shape[1:]
+        flat_action_fb_shape = (B_fb * S_fb,) + replay_batch["action"].shape[1:]
 
-        # Get the batch of feedback data.
-        feedback_batch = to_device(feedback_batch, self.device)
+        # Compute the split over observations between feedback and replay batches
+        split = [B_fb * S_fb, B_fb * S_fb, B_r]
+        B_total = split[0] * split[1] * split[2]
+        # Construct one large batch for each of obs, action, next obs, discount
+        obs = torch.cat(
+            [
+                feedback_batch["obs_1"][:, :-1].view(*flat_obs_fb_shape),
+                feedback_batch["obs_2"][:, :-1].view(*flat_obs_fb_shape),
+                replay_batch["obs"],
+            ],
+            dim=0,
+        )
+        action = torch.cat(
+            [
+                feedback_batch["action_1"][:, :-1].view(*flat_action_fb_shape),
+                feedback_batch["action_2"][:, :-1].view(*flat_action_fb_shape),
+                replay_batch["action"],
+            ],
+            dim=0,
+        )
+        next_obs = torch.cat(
+            [
+                feedback_batch["obs_1"][:, 1:].view(*flat_obs_fb_shape),
+                feedback_batch["obs_2"][:, 1:].view(*flat_obs_fb_shape),
+                replay_batch["next_obs"],
+            ],
+            dim=0,
+        )
+        # Make the fb discount exactly match the flat_shape.
+        discount_fb = feedback_batch["discount"].unsqueeze(1).repeat(1, S_fb).repeat(2)
+        discount = torch.cat((discount_fb, replay_batch["discount"]), dim=0)
 
-        r1, r2 = self._get_reward(feedback_batch)
-        logits = r2.sum(dim=2) - r1.sum(dim=2)  # Sum across sequence dim, (E, B)
-        labels = feedback_batch["label"].float().unsqueeze(0).expand(logits.shape[0], -1)  # Shape (E, B)
+        # Apply Encoders
+        obs = self.network.encoder(obs)
+        with torch.no_grad():
+            next_obs = self.target_network.encoder(next_obs)
+
+        # Compute reward
+        qs = self.network.critic(obs, action)
+        with torch.no_grad():
+            dist = self.network.actor(next_obs)
+            next_action = dist.sample()
+
+            if self.use_soft_q:
+                pass
+            else:
+                # Ignore the soft valeus and min trick, just do this:
+                next_vs = self.target_network.critic(next_obs, next_action)
+
+        reward = qs - discount * next_vs  # Shape (E, B_total)
+        assert reward.shape[1] == B_total
+        E = reward.shape[0]
+
+        # Compute the Chi2 Loss over EVERYTHING, including replay data
+        # Later we could move this somewhere else to try and balance the batches more.
+        chi2_loss = 1 / (4 * self.chi2_coeff) * (reward**2).mean()
+
+        # Now re-chunk everything to get the logits
+        r1, r2, _ = torch.split(reward, split, dim=1)  # Now slips over dim 1 because of ensemble.
+        r1, r2 = r1.view(E, B_fb, S_fb), r2.view(E, B_fb, S_fb)
+        logits = r2.sum(dim=2) - r1.sum(dim=2)  # Sum across sequence dim, (E, B_fb)
+
+        # Compute the Q-loss over the imitation data
+        labels = feedback_batch["label"].float().unsqueeze(0).expand(E, -1)  # Shape (E, B)
         assert labels.shape == logits.shape
         q_loss = self.reward_criterion(logits, labels).mean()
-
-        chi2_loss = (
-            1 / (8 * self.chi2_coeff) * ((r1**2).mean() + (r2**2).mean())
-        )  # Turn 1/4 to 1/8 because we sum over both.
 
         self.optim["critic"].zero_grad(set_to_none=True)
         (q_loss + chi2_loss).backward()
         self.optim["critic"].step()
 
-        # Now update the actor.
-        # Select a random sequence index to use for the feedback batches
-        B, S = feedback_batch["obs_1"].shape[:2]
-        idx = torch.randint(low=0, high=S, size=(B,), device=self.device, dtype=torch.long)
-        arange = torch.arange(0, B, device=self.device, dtype=torch.long)
-        obs = torch.cat(
-            [batch["obs"], feedback_batch["obs_1"][arange, idx], feedback_batch["obs_2"][arange, idx]], dim=0
-        )
+        # Now compute the actor loss
         dist = self.network.actor(obs)
-        action = dist.rsample()
-        log_prob = dist.log_prob(action).sum(dim=-1)
-        qs = self.network.critic(obs, action)
-        q = torch.min(qs, dim=0)[0]
-        actor_loss = (self.alpha.detach() * log_prob - q).mean()
+        action_pi = dist.rsample()
+        log_prob = dist.log_prob(action_pi).sum(dim=-1)
+        qs_pi = self.network.critic(obs, action_pi)
+        q_pi = torch.min(qs_pi, dim=0)[0]
+        actor_loss = (self.alpha.detach() * log_prob - q_pi).mean()
         if self.bc_coeff > 0.0:
-            bc_loss = -dist.log_prob(batch["action"]).sum(dim=-1).mean()  # Simple NLL loss.
+            bc_loss = -dist.log_prob(action).sum(dim=-1).mean()  # Simple NLL loss.
             actor_loss = actor_loss + self.bc_coeff * bc_loss
 
         self.optim["actor"].zero_grad(set_to_none=True)
@@ -310,12 +350,10 @@ class IHLearnOnline(OffPolicyAlgorithm):
         self.optim["actor"].step()
         entropy = -log_prob.mean()
 
-        # Update the learned temperature
-        if self.learn_temperature:
-            self.optim["log_alpha"].zero_grad(set_to_none=True)
-            alpha_loss = (self.alpha * (-log_prob - self.target_entropy).detach()).mean()
-            alpha_loss.backward()
-            self.optim["log_alpha"].step()
+        self.optim["log_alpha"].zero_grad(set_to_none=True)
+        alpha_loss = (self.alpha * (-log_prob - self.target_entropy).detach()).mean()
+        alpha_loss.backward()
+        self.optim["log_alpha"].step()
 
         # update the metrics
         all_metrics.update(
@@ -325,7 +363,8 @@ class IHLearnOnline(OffPolicyAlgorithm):
                 actor_loss=actor_loss.item(),
                 entropy=entropy.item(),
                 alpha=self.alpha.detach().item(),
-                adv=r1.mean().item(),
+                reward=reward.mean().item(),
+                q=qs.mean().item(),
             )
         )
 
@@ -338,9 +377,6 @@ class IHLearnOnline(OffPolicyAlgorithm):
         return all_metrics
 
     def validation_extras(self, path: str, step: int) -> Dict:
-        if self._saved_recent_visualizations:
-            return {}
-        self._saved_recent_visualizations = True
         return {}
 
     def _predict(self, batch: Any, sample: bool = False) -> torch.Tensor:

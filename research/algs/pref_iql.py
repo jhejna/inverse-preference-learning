@@ -90,10 +90,7 @@ class PreferenceIQL(OffPolicyAlgorithm):
         reward_kwargs.update(self.optim_kwargs.get("reward", dict()))
         self.optim["reward"] = self.optim_class(self.network.reward.parameters(), **reward_kwargs)
 
-    
     def train_step(self, batch: Dict, step: int, total_steps: int) -> Dict:
-
-
         obs = torch.cat([batch["obs_1"], batch["obs_2"]], dim=0)  # (B, S+1)
         action = torch.cat([batch["action_1"], batch["action_2"]], dim=0)  # (B, S+1)
         # Compute shapes and add everything to the batch dimension
@@ -104,8 +101,6 @@ class PreferenceIQL(OffPolicyAlgorithm):
         next_obs = obs[:, 1:].reshape(flat_obs_shape)
         obs = obs[:, :-1].reshape(flat_obs_shape)
         action = action[:, :-1].reshape(flat_action_shape)
-
-        
 
         qs = self.network.critic(obs, action)
         with torch.no_grad():
@@ -120,11 +115,9 @@ class PreferenceIQL(OffPolicyAlgorithm):
         r1, r2 = torch.chunk(reward, 2, dim=1)  # Should return two (E, B, S)
         logits = r2.sum(dim=2) - r1.sum(dim=2)  # Sum across sequence dim, (E, B)
 
-
         labels = batch["label"].float().unsqueeze(0).expand(logits.shape[0], -1)  # Shape (E, B)
         assert labels.shape == logits.shape
         q_loss = self.reward_criterion(logits, labels).mean()
-
 
         # We use the online encoder for everything in this IQL implementation
         # That is because we need to use the current obs for the target critic and online value.
