@@ -21,7 +21,6 @@ class SawyerEnv(gym.Env):
         self.observation_space = self._env.observation_space
         self.action_space = self._env.action_space
         self._max_episode_steps = self._env.max_path_length
-        self.max_episode_steps = self._env.max_path_length
 
     def seed(self, seed=None):
         super().seed(seed=seed)
@@ -56,3 +55,6 @@ class SawyerEnv(gym.Env):
         view_1 = self._env.render(offscreen=True, camera_name="corner", resolution=(width, height))
         view_2 = self._env.render(offscreen=True, camera_name="topview", resolution=(width, height))
         return np.concatenate((view_1, view_2), axis=0)
+
+    def __getattr__(self, name):
+        return getattr(self._env, name)
