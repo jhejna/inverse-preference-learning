@@ -318,7 +318,7 @@ class Trainer(object):
                     last_validation_log = current_step
 
                 current_step = new_current_step  # Update the current step
-                if current_step >= self.total_steps:
+                if current_step > self.total_steps:
                     break  # We need to break in the middle of an epoch.
 
                 profile = self.profile_freq > 0 and steps % self.profile_freq == 0
