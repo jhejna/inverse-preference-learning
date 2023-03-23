@@ -149,6 +149,15 @@ class PairwiseComparisonDataset(torch.utils.data.IterableDataset):
             yield self._sample(cur_idxs)
 
 
+class EmptyDataset(torch.utils.data.IterableDataset):
+    def __init__(self, observation_space: gym.Space, action_space: gym.Space, **kwargs) -> None:
+        pass
+
+    def __iter__(self):
+        while True:
+            yield None
+
+
 class ReplayAndFeedbackBuffer(torch.utils.data.IterableDataset):
     """
     Dataset class that combines a replay buffer and a feedback buffer
@@ -159,7 +168,7 @@ class ReplayAndFeedbackBuffer(torch.utils.data.IterableDataset):
         self,
         observation_space: gym.Space,
         action_space: gym.Space,
-        replay_class: torch.utils.data.IterableDataset = ReplayBuffer,
+        replay_class: torch.utils.data.IterableDataset = EmptyDataset,
         feedback_class: torch.utils.data.IterableDataset = PairwiseComparisonDataset,
         replay_kwargs: Dict = {},
         feedback_kwargs: Dict = {},

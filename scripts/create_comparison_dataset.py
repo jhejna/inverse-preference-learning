@@ -22,6 +22,8 @@ if __name__ == "__main__":
 
     assert os.path.exists(args.path)
 
+    # TODO: support D4RL datasets
+
     env = gym.make(args.env)
     capacity = args.capacity  # Rename for ease
 

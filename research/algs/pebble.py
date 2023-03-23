@@ -261,7 +261,7 @@ class PEBBLE(OffPolicyAlgorithm):
     def _get_queries(self, batch_size):
         batch = self.dataset.sample(batch_size=2 * batch_size, stack=self.segment_size, pad=0)
         # Compute the discounted reward across each segment to be used for oracle labels
-        returns = np.sum(batch["reward"] * np.power(self.dataset.discount, np.arange(batch["reward"].shape[1])), axis=1)
+        returns = np.sum(batch["reward"], axis=1)  # Use non-discounted to match PEBBLE.
         segment_batch = dict(
             obs_1=batch["obs"][:batch_size],
             obs_2=batch["obs"][batch_size:],

@@ -24,6 +24,7 @@ class PreferenceIQL(Algorithm):
         expectile: Optional[float] = None,
         beta: float = 1,
         clip_score: float = 100.0,
+        reward_steps: Optional[int] = None,
         **kwargs,
     ) -> None:
         super().__init__(*args, **kwargs)
@@ -33,6 +34,7 @@ class PreferenceIQL(Algorithm):
         self.expectile = expectile
         self.beta = beta
         self.clip_score = clip_score
+        self.reward_steps = reward_steps
         self.action_range = [
             float(self.processor.action_space.low.min()),
             float(self.processor.action_space.high.max()),
@@ -78,7 +80,7 @@ class PreferenceIQL(Algorithm):
         reward_kwargs.update(self.optim_kwargs.get("reward", dict()))
         self.optim["reward"] = self.optim_class(self.network.reward.parameters(), **reward_kwargs)
 
-    def train_step(self, batch: Dict, step: int, total_steps: int) -> Dict:
+    def _update_reward(self, batch):
         obs = torch.cat([batch["obs_1"], batch["obs_2"]], dim=0)  # (B, S+1)
         action = torch.cat([batch["action_1"], batch["action_2"]], dim=0)  # (B, S+1)
         obs = self.network.encoder(obs)  # Encode all the observations.
@@ -88,9 +90,8 @@ class PreferenceIQL(Algorithm):
         S -= 1  # Subtract one for the next obs sequence.
         flat_obs_shape = (B * S,) + obs.shape[2:]
         flat_action_shape = (B * S,) + action.shape[2:]
-        next_obs = obs[:, 1:].reshape(flat_obs_shape)
-        obs = obs[:, :-1].reshape(flat_obs_shape)
-        action = action[:, :-1].reshape(flat_action_shape)
+        obs = obs.view(flat_obs_shape)
+        action = action.view(flat_action_shape)
 
         reward = self.network.reward(obs, action)
 
@@ -99,7 +100,7 @@ class PreferenceIQL(Algorithm):
         assert B_times_S == B * S
         r1, r2 = torch.chunk(reward.view(E, B, S), 2, dim=1)  # Should return two (E, B, S)
         logits = r2.sum(dim=2) - r1.sum(dim=2)  # Sum across sequence dim, (E, B)
-        labels = batch["label"].float().unsqueeze(0).expand(logits.shape[0], -1)  # Shape (E, B)
+        labels = batch["label"].float().unsqueeze(0).expand(E, -1)  # Shape (E, B)
         assert labels.shape == logits.shape
         reward_loss = self.reward_criterion(logits, labels).mean()
 
@@ -107,11 +108,18 @@ class PreferenceIQL(Algorithm):
         reward_loss.backward()
         self.optim["reward"].step()
 
+    def _update_iql(self, batch):
+        # Run the encoders
+        obs = self.network.encoder(batch["obs"])
+        with torch.no_grad():
+            next_obs = self.network.encoder(batch["next_obs"])
+        action = batch["action"]
+
         # compute the value loss
         with torch.no_grad():
             target_q = self.target_network.critic(obs, action)
             target_q = torch.min(target_q, dim=0)[0]
-        vs = self.network.value(obs.detach())  # Always detach for value learning
+        vs = self.network.value(obs)
         v_loss = iql_loss(vs, target_q.expand(vs.shape[0], -1), self.expectile).mean()
 
         self.optim["value"].zero_grad(set_to_none=True)
@@ -119,9 +127,10 @@ class PreferenceIQL(Algorithm):
         self.optim["value"].step()
 
         # Next, update the actor. We detach and use the old value, v for computational efficiency
-        # though the JAX IQL recomputes it, while Pytorch IQL versions do not.
+        # and use the target_q value though the JAX IQL recomputes both
+        # Pytorch IQL versions have not.
         with torch.no_grad():
-            adv = target_q - torch.mean(vs, dim=0)[0]
+            adv = target_q - torch.mean(vs, dim=0)[0]  # min trick is not used on value.
             exp_adv = torch.exp(adv / self.beta)
             if self.clip_score is not None:
                 exp_adv = torch.clamp(exp_adv, max=self.clip_score)
@@ -143,14 +152,69 @@ class PreferenceIQL(Algorithm):
         # Next, Finally update the critic
         with torch.no_grad():
             next_vs = self.network.value(next_obs)
-            next_v = torch.min(next_vs, dim=0)[0]
-            target = reward.detach() + batch["discount"] * next_v  # use the predicted reward.
-        qs = self.network.critic(obs.detach(), action)
+            next_v = torch.mean(next_vs, dim=0, keepdim=True)
+            reward = self.network.reward(obs, action)
+            target = reward + batch["discount"] * next_v  # use the predicted reward.
+        qs = self.network.critic(obs, action)
         q_loss = torch.nn.functional.mse_loss(qs, target.expand(qs.shape[0], -1), reduction="none").mean()
 
         self.optim["critic"].zero_grad(set_to_none=True)
         q_loss.backward()
         self.optim["critic"].step()
+
+        return dict(
+            q_loss=q_loss.item(),
+            v_loss=v_loss.item(),
+            actor_loss=actor_loss.item(),
+            v=vs.mean().item(),
+            q=qs.mean().item(),
+            adv=adv.mean().item(),
+            reward=reward.mean().item(),
+        )
+
+    def setup(self):
+        super().setup()
+        self._data_pts_seen = 0
+        self._flops = 0
+
+    def train_step(self, batch: Dict, step: int, total_steps: int) -> Dict:
+        all_metrics = {}
+
+        replay_batch, feedback_batch = batch
+
+        if step < self.reward_steps:
+            # Update the reward network
+            metrics = self._update_reward(feedback_batch)
+            all_metrics.update(metrics)
+            self._data_pts_seen += 2 * feedback_batch["obs_1"].shape[0]
+            self._flops += 2 * feedback_batch["obs_1"].shape[0]
+
+        # Determine which data to use for training
+        if replay_batch is None or "obs" not in replay_batch:
+            # Construct an IQL training batch from the replay batch
+            obs = torch.cat([batch["obs_1"], batch["obs_2"]], dim=0)  # (B, S+1)
+            action = torch.cat([batch["action_1"], batch["action_2"]], dim=0)  # (B, S+1)
+            discount = feedback_batch["discount"].repeat(2)
+
+            # Compute shapes and add everything to the batch dimension
+            B, S = obs.shape[:2]
+            S -= 1  # Subtract one for the next obs sequence.
+            flat_obs_shape = (B * S,) + obs.shape[2:]
+            flat_action_shape = (B * S,) + action.shape[2:]
+            next_obs = obs[:, 1:].view(flat_obs_shape)
+            obs = obs[:, :-1].view(flat_obs_shape)
+            action = action[:, :-1].view(flat_action_shape)
+            discount = discount.unsqueeze(1).repeat(1, S).flatten()
+            replay_batch = dict(obs=obs, action=action, next_obs=next_obs, discount=discount)
+        else:
+            self._data_pts_seen += replay_batch["obs"].shape[0]
+
+        metrics = self._update_iql(replay_batch)
+        all_metrics.update(metrics)
+        self._flops += 3 * replay_batch["obs"].shape[0]
+
+        all_metrics["data_pts_seen"] = self._data_pts_seen
+        all_metrics["flops"] = self._flops
 
         # Update the networks. These are done in a stack to support different grad options for the encoder.
         if step % self.target_freq == 0:
@@ -165,16 +229,7 @@ class PreferenceIQL(Algorithm):
                 ):
                     target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
 
-        return dict(
-            reward_loss=reward_loss.item(),
-            q_loss=q_loss.item(),
-            v_loss=v_loss.item(),
-            actor_loss=actor_loss.item(),
-            v=vs.mean().item(),
-            q=qs.mean().item(),
-            adv=adv.mean().item(),
-            reward=reward.mean().item(),
-        )
+        return all_metrics
 
     def _predict(self, batch: Dict, sample: bool = False) -> torch.Tensor:
         with torch.no_grad():
@@ -187,4 +242,10 @@ class PreferenceIQL(Algorithm):
             else:
                 raise ValueError("Invalid policy output")
             action = action.clamp(*self.action_range)
+        return action
+
+    def _get_train_action(self, step: int, total_steps: int) -> np.ndarray:
+        batch = dict(obs=self._current_obs)
+        with torch.no_grad():
+            action = self.predict(batch, is_batched=False, sample=True)
         return action

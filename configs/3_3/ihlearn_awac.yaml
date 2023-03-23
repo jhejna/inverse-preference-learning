@@ -1,4 +1,4 @@
-alg: IHLearnAWAC
+alg: IPLearnAWAC
 alg_kwargs:
   tau: 0.005
   target_freq: 1

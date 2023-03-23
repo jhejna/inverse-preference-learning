@@ -1,6 +1,6 @@
 # Example Config that uses almost all values
 
-alg: IHLearnOnline
+alg: IPLearnOnline
 alg_kwargs:
   tau: 0.005
   learn_temperature: False
