@@ -4,7 +4,7 @@ channels:
   - nvidia
   - defaults
 dependencies:
-  - python
+  - python=3.11
 
   # Development
   - black
@@ -46,6 +46,6 @@ dependencies:
 
   - pip
   - pip:
-      - gym<=0.24.1
+      - gym==0.23.1
       - mujoco-py<2.2,>=2.1
       - git+https://github.com/rlworkgroup/metaworld.git@master#egg=metaworld

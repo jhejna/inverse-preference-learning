@@ -19,8 +19,8 @@ class D4RLDataset(ReplayBuffer):
         action_space: gym.Space,
         name: str,
         d4rl_path: Optional[str] = None,  # where to save D4RL files.
-        use_rtg: bool = True,
-        use_timesteps: bool = True,
+        use_rtg: bool = False,
+        use_timesteps: bool = False,
         normalize_reward: bool = False,
         reward_scale: float = 1.0,
         reward_shift: float = 0.0,
@@ -67,7 +67,7 @@ class D4RLDataset(ReplayBuffer):
                     ep_reward, ep_length = 0, 0
             min_reward, max_reward = min(ep_rewards), max(ep_rewards)
             print("[research] Normalized D4RL range:", min_reward, max_reward)
-            self.reward_scale *= 1 / (max_reward - min_reward)
+            self.reward_scale *= env._max_episode_steps / (max_reward - min_reward)
 
         # Lots of this code was borrowed from https://github.com/rail-berkeley/d4rl/blob/master/d4rl/__init__.py
         obs_ = []

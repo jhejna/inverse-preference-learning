@@ -1,6 +1,12 @@
 # Register environment classes here
 from .base import Empty
 
+# Import the D4RL environments
+import d4rl
+
+# Import the robomimic enviroments
+from .robomimic_env import RoboMimicEnv
+
 # If we want to register environments in gym.
 # These will be loaded when we import the research package.
 from gym.envs import register

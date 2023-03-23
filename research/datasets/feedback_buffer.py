@@ -102,6 +102,7 @@ class PairwiseComparisonDataset(torch.utils.data.IterableDataset):
             label = self.label_buffer[idxs]
         else:
             # Note: subsample sequences currently do not support arbitrary obs/action spaces.
+            # we could do this with two utils calls, but that would be slower.
             start = np.random.randint(0, self.segment_size - self.subsample_size)
             end = start + self.subsample_size
             obs_1 = self.obs_1_buffer[idxs, start:end]
