@@ -1,5 +1,6 @@
 import argparse
 import os
+import subprocess
 
 from research.utils.config import Config
 
@@ -31,8 +32,17 @@ if __name__ == "__main__":
     os.makedirs(args.path, exist_ok=True)
     try_wandb_setup(args.path, config)
     config.save(args.path)  # Save the config
+    # save the git hash
+    process = subprocess.Popen(["git", "rev-parse", "HEAD"], shell=False, stdout=subprocess.PIPE)
+    git_head_hash = process.communicate()[0].strip()
+    with open(os.path.join(args.path, "git_hash.txt"), "wb") as f:
+        f.write(git_head_hash)
+    # Parse the config file to resolve names.
     config = config.parse()
+    # Get the model
     model = config.get_model(device=args.device)
+    # Get the trainer
     trainer = config.get_trainer()
+    # Train the model
     trainer.set_model(model)
     trainer.train(args.path)
