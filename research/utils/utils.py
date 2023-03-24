@@ -12,7 +12,7 @@ def to_device(batch: Any, device: torch.device) -> Any:
         batch = [to_device(v, device) for v in batch]
     elif isinstance(batch, torch.Tensor):
         batch = batch.to(device)
-    elif isinstance(batch, (int, float)):
+    elif isinstance(batch, (int, float, type(None))):
         pass
     else:
         raise ValueError("Unsupported type passed to `to_device`")
@@ -29,7 +29,7 @@ def to_tensor(batch: Any) -> Any:
         if batch.dtype == np.float64:
             batch = batch.astype(np.float32)
         batch = torch.from_numpy(batch)
-    elif isinstance(batch, (int, float)):
+    elif isinstance(batch, (int, float, type(None))):
         pass
     else:
         raise ValueError("Unsupported type passed to `to_tensor`")

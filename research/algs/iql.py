@@ -6,7 +6,7 @@ import torch
 
 from research.networks.base import ActorCriticValuePolicy
 
-from .base import Algorithm
+from .off_policy_algorithm import OffPolicyAlgorithm
 
 
 def iql_loss(pred, target, expectile=0.5):
@@ -15,7 +15,7 @@ def iql_loss(pred, target, expectile=0.5):
     return weight * torch.square(err)
 
 
-class IQL(Algorithm):
+class IQL(OffPolicyAlgorithm):
     def __init__(
         self,
         *args,

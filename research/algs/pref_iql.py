@@ -87,7 +87,6 @@ class PreferenceIQL(Algorithm):
 
         # Compute shapes and add everything to the batch dimension
         B, S = obs.shape[:2]
-        S -= 1  # Subtract one for the next obs sequence.
         flat_obs_shape = (B * S,) + obs.shape[2:]
         flat_action_shape = (B * S,) + action.shape[2:]
         obs = obs.view(flat_obs_shape)
@@ -107,6 +106,8 @@ class PreferenceIQL(Algorithm):
         self.optim["reward"].zero_grad(set_to_none=True)
         reward_loss.backward()
         self.optim["reward"].step()
+
+        return dict(reward_loss=reward_loss.item(), reward=reward.mean().item())
 
     def _update_iql(self, batch):
         # Run the encoders
@@ -192,8 +193,8 @@ class PreferenceIQL(Algorithm):
         # Determine which data to use for training
         if replay_batch is None or "obs" not in replay_batch:
             # Construct an IQL training batch from the replay batch
-            obs = torch.cat([batch["obs_1"], batch["obs_2"]], dim=0)  # (B, S+1)
-            action = torch.cat([batch["action_1"], batch["action_2"]], dim=0)  # (B, S+1)
+            obs = torch.cat([feedback_batch["obs_1"], feedback_batch["obs_2"]], dim=0)  # (B, S+1)
+            action = torch.cat([feedback_batch["action_1"], feedback_batch["action_2"]], dim=0)  # (B, S+1)
             discount = feedback_batch["discount"].repeat(2)
 
             # Compute shapes and add everything to the batch dimension
@@ -201,9 +202,9 @@ class PreferenceIQL(Algorithm):
             S -= 1  # Subtract one for the next obs sequence.
             flat_obs_shape = (B * S,) + obs.shape[2:]
             flat_action_shape = (B * S,) + action.shape[2:]
-            next_obs = obs[:, 1:].view(flat_obs_shape)
-            obs = obs[:, :-1].view(flat_obs_shape)
-            action = action[:, :-1].view(flat_action_shape)
+            next_obs = obs[:, 1:].reshape(flat_obs_shape)
+            obs = obs[:, :-1].reshape(flat_obs_shape)
+            action = action[:, :-1].reshape(flat_action_shape)
             discount = discount.unsqueeze(1).repeat(1, S).flatten()
             replay_batch = dict(obs=obs, action=action, next_obs=next_obs, discount=discount)
         else:

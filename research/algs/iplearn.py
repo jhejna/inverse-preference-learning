@@ -56,6 +56,7 @@ class IPLearnBase(OffPolicyAlgorithm):
         self.feedback_schedule = feedback_schedule
         self.feedback_sample_multiplier = feedback_sample_multiplier
         self.num_uniform_feedback = num_uniform_feedback
+        self.reward_criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
 
         # Initialize feedback parameters
         self._total_feedback = 0
@@ -237,8 +238,8 @@ class IPLearnBase(OffPolicyAlgorithm):
         # First collect all the shapes
         B_fb, S_fb = feedback_batch["obs_1"].shape[:2]
         S_fb -= 1  # Subtract one for the next_obs offset
-        flat_obs_fb_shape = (B_fb * S_fb,) + feedback_batch["obs"].shape[2:]
-        flat_action_fb_shape = (B_fb * S_fb,) + feedback_batch["action"].shape[2:]
+        flat_obs_fb_shape = (B_fb * S_fb,) + feedback_batch["obs_1"].shape[2:]
+        flat_action_fb_shape = (B_fb * S_fb,) + feedback_batch["action_1"].shape[2:]
         B_r = replay_batch["obs"].shape[0] if using_replay_batch else 0
 
         # Compute the split over observations between feedback and replay batches
@@ -247,31 +248,32 @@ class IPLearnBase(OffPolicyAlgorithm):
         # Construct one large batch for each of obs, action, next obs, discount
         obs = torch.cat(
             [
-                feedback_batch["obs_1"][:, :-1].view(*flat_obs_fb_shape),
-                feedback_batch["obs_2"][:, :-1].view(*flat_obs_fb_shape),
-                *(replay_batch["obs"] if using_replay_batch else ()),
+                feedback_batch["obs_1"][:, :-1].reshape(*flat_obs_fb_shape),
+                feedback_batch["obs_2"][:, :-1].reshape(*flat_obs_fb_shape),
+                *((replay_batch["obs"],) if using_replay_batch else ()),
             ],
             dim=0,
         )
         action = torch.cat(
             [
-                feedback_batch["action_1"][:, :-1].view(*flat_action_fb_shape),
-                feedback_batch["action_2"][:, :-1].view(*flat_action_fb_shape),
-                *(replay_batch["action"] if using_replay_batch else ()),
+                feedback_batch["action_1"][:, :-1].reshape(*flat_action_fb_shape),
+                feedback_batch["action_2"][:, :-1].reshape(*flat_action_fb_shape),
+                *((replay_batch["action"],) if using_replay_batch else ()),
             ],
             dim=0,
         )
         next_obs = torch.cat(
             [
-                feedback_batch["obs_1"][:, 1:].view(*flat_obs_fb_shape),
-                feedback_batch["obs_2"][:, 1:].view(*flat_obs_fb_shape),
-                *(replay_batch["next_obs"] if using_replay_batch else ()),
+                feedback_batch["obs_1"][:, 1:].reshape(*flat_obs_fb_shape),
+                feedback_batch["obs_2"][:, 1:].reshape(*flat_obs_fb_shape),
+                *((replay_batch["next_obs"],) if using_replay_batch else ()),
             ],
             dim=0,
         )
         # Make the fb discount exactly match the flat_shape.
-        discount_fb = feedback_batch["discount"].unsqueeze(1).repeat(1, S_fb).flatten().repeat(2)
-        discount = torch.cat((discount_fb, replay_batch["discount"]), dim=0)
+        discount = feedback_batch["discount"].unsqueeze(1).repeat(1, S_fb).flatten().repeat(2)
+        if using_replay_batch:
+            discount = torch.cat((discount, replay_batch["discount"]), dim=0)
 
         # Apply Encoders
         obs = self.network.encoder(obs)
@@ -294,7 +296,7 @@ class IPLearnBase(OffPolicyAlgorithm):
         q_loss = self.reward_criterion(logits, labels).mean()
 
         # Compute the Chi2 Loss over EVERYTHING, including replay data
-        if self.feedback_ratio is not None and B_r > 0:
+        if self.feedback_proportion is not None and B_r > 0:
             # This tries to balance the loss over data points.
             chi2_loss_fb = 1 / (8 * self.chi2_coeff) * (torch.square(r1).mean() + torch.square(r2).mean())
             chi2_loss_replay = 1 / (4 * self.chi2_coeff) * torch.square(rr).mean()
@@ -307,14 +309,15 @@ class IPLearnBase(OffPolicyAlgorithm):
         self.optim["critic"].step()
 
         # Next, call the actor function to update the actor
-        # Before we do that, we rebalance the batches if feedback_ratio is not None.
-        if self.feedback_ratio is not None and B_r > 0:
-            num_fb_data_points = min(B_r * self.feedback_proportion / (1 - self.feedback_proportion), 2 * B_fb * S_fb)
-            fb_idx = torch.randperm(2 * B_fb, *S_fb, device=self.device)[:num_fb_data_points]
-            replay_idx = torch.arange(*B_fb * S_fb, B_total, device=self.device)
+        # Before we do that, we rebalance the batches if feedback_proportion is not None.
+        if self.feedback_proportion is not None and B_r > 0:
+            num_fb_data_points = int(B_r * self.feedback_proportion / (1 - self.feedback_proportion))
+            num_fb_data_points = min(num_fb_data_points, 2 * B_fb * S_fb)
+            fb_idx = torch.randperm(2 * B_fb * S_fb, device=self.device)[:num_fb_data_points]
+            replay_idx = torch.arange(2 * B_fb * S_fb, B_total, device=self.device)
             idx = torch.cat((fb_idx, replay_idx), dim=0)
             # Sub-sample to maintain balance when updating the actor.
-            obs, action, qs = obs[idx], action[idx], qs[:, idx]
+            obs, action, qs = obs[idx], action[idx], qs[:, idx]  # Note the ensemble dim.
 
         metrics = self._update_actor(obs, action, qs)  # Cache the computation of q
         all_metrics.update(metrics)
@@ -372,6 +375,7 @@ class IPLearnSAC(IPLearnBase):
     def __init__(
         self,
         *args,
+        target_freq: int = 2,  # NOTE: Diff default target freq for online and offline.
         init_temperature: float = 0.1,
         bc_coeff=0.0,
         target_entropy: Optional[float] = None,
@@ -381,7 +385,7 @@ class IPLearnSAC(IPLearnBase):
     ):
         # Save values needed for optim setup.
         self.init_temperature = init_temperature
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, target_freq=target_freq, **kwargs)
 
         # SAC parameters
         self.bc_coeff = bc_coeff
@@ -397,7 +401,7 @@ class IPLearnSAC(IPLearnBase):
     def setup_network(self, network_class: Type[torch.nn.Module], network_kwargs: Dict) -> None:
         super().setup_network(network_class, network_kwargs)
         log_alpha = torch.tensor(np.log(self.init_temperature), dtype=torch.float).to(self.device)
-        self.log_alpha = torch.nn.Parameter(log_alpha, requires_grad=self.learn_temperature)
+        self.log_alpha = torch.nn.Parameter(log_alpha, requires_grad=True)
 
     def setup_optimizers(self) -> None:
         super().setup_optimizers()
@@ -465,11 +469,13 @@ class IPLearnAWAC(IPLearnBase):
     def __init__(
         self,
         *args,
+        target_freq: int = 1,  # NOTE: different init target freq for offline and online.
         beta: float = 0.33,
         clip_score: float = 100.0,
+        max_feedback: int = 0,  # Default to fully offline
         **kwargs,
     ):
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, target_freq=target_freq, max_feedback=max_feedback, **kwargs)
         self.beta = beta
         self.clip_score = clip_score
 

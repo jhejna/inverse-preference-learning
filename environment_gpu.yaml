@@ -49,3 +49,4 @@ dependencies:
       - gym==0.23.1
       - mujoco-py<2.2,>=2.1
       - git+https://github.com/rlworkgroup/metaworld.git@master#egg=metaworld
+      - git+https://github.com/Farama-Foundation/d4rl@master#egg=d4rl

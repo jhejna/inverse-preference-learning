@@ -39,10 +39,6 @@ class OffPolicyAlgorithm(Algorithm):
             # we don't add to the dataset here.
             # This was done for better compatibility for offline to online learning.
             # Setup the add dataset
-            if isinstance(self, ReplayAndFeedbackBuffer):
-                self._add_dataset = self.dataset.replay_buffer
-            else:
-                self._add_dataset = self.dataset
 
     @abstractmethod
     def _get_train_action(self, step: int, total_steps: int) -> np.ndarray:
@@ -81,7 +77,10 @@ class OffPolicyAlgorithm(Algorithm):
             discount = 1 - float(done)
 
         # Store the consequences.
-        self._add_dataset.add(next_obs, action, reward, done, discount)
+        if isinstance(self.dataset, ReplayAndFeedbackBuffer):
+            self.dataset.replay_buffer.add(next_obs, action, reward, done, discount)
+        else:
+            self.dataset.add(next_obs, action, reward, done, discount)
 
         if done:
             self._num_ep += 1
@@ -91,7 +90,11 @@ class OffPolicyAlgorithm(Algorithm):
             metrics["num_ep"] = self._num_ep
             # Reset the environment
             self._current_obs = self.env.reset()
-            self._add_dataset.add(self._current_obs)  # Add the first timestep
+            # Add the first timestep
+            if isinstance(self.dataset, ReplayAndFeedbackBuffer):
+                self.dataset.replay_buffer.add(self._current_obs)
+            else:
+                self.dataset.add(self._current_obs)
             self._episode_length = 0
             self._episode_reward = 0
         else:
