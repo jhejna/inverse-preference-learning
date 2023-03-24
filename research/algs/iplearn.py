@@ -145,22 +145,22 @@ class IPLearnBase(OffPolicyAlgorithm):
                 # Construct obs, action, next_obs batches
                 obs = torch.cat(
                     [
-                        queries["obs_1"][:, :-1].view(*flat_obs_fb_shape),
-                        queries["obs_2"][:, :-1].view(*flat_obs_fb_shape),
+                        queries["obs_1"][:, :-1].reshape(*flat_obs_fb_shape),
+                        queries["obs_2"][:, :-1].reshape(*flat_obs_fb_shape),
                     ],
                     dim=0,
                 )
                 action = torch.cat(
                     [
-                        queries["action_1"][:, :-1].view(*flat_action_fb_shape),
-                        queries["action_2"][:, :-1].view(*flat_action_fb_shape),
+                        queries["action_1"][:, :-1].reshape(*flat_action_fb_shape),
+                        queries["action_2"][:, :-1].reshape(*flat_action_fb_shape),
                     ],
                     dim=0,
                 )
                 next_obs = torch.cat(
                     [
-                        queries["obs_1"][:, 1:].view(*flat_obs_fb_shape),
-                        queries["obs_2"][:, 1:].view(*flat_obs_fb_shape),
+                        queries["obs_1"][:, 1:].reshape(*flat_obs_fb_shape),
+                        queries["obs_2"][:, 1:].reshape(*flat_obs_fb_shape),
                     ],
                     dim=0,
                 )
