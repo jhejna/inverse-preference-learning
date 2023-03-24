@@ -22,6 +22,9 @@ class Algorithm(ABC):
         dataset_class: Union[Type[torch.utils.data.IterableDataset], Type[torch.utils.data.Dataset]],
         network_kwargs: Dict = {},
         dataset_kwargs: Dict = {},
+        validation_dataset_class: Optional[
+            Union[Type[torch.utils.data.IterableDataset], Type[torch.utils.data.Dataset]]
+        ] = None,
         validation_dataset_kwargs: Optional[Dict] = None,
         optim_class: Type[torch.optim.Optimizer] = torch.optim.Adam,
         optim_kwargs: Dict = {"lr": 0.0001},
@@ -66,6 +69,7 @@ class Algorithm(ABC):
         # Save values for datasets, which will be lazily initialized later
         self.dataset_class = dataset_class
         self.dataset_kwargs = dataset_kwargs
+        self.validation_dataset_class = validation_dataset_class
         self.validation_dataset_kwargs = validation_dataset_kwargs
 
         self._training = False
@@ -211,7 +215,11 @@ class Algorithm(ABC):
         self.dataset = self.dataset_class(self.env.observation_space, self.env.action_space, **self.dataset_kwargs)
 
     def setup_validation_dataset(self) -> None:
-        if self.validation_dataset_kwargs is not None:
+        if self.validation_dataset_class is not None:
+            self.validation_dataset = self.validation_dataset_class(
+                self.env.observation_space, self.env.action_space, **self.validation_dataset_kwargs
+            )
+        elif self.validation_dataset_kwargs is not None:
             validation_dataset_kwargs = copy.deepcopy(self.dataset_kwargs)
             validation_dataset_kwargs.update(self.validation_dataset_kwargs)
             self.validation_dataset = self.dataset_class(

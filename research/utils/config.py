@@ -110,6 +110,8 @@ class Config(BareConfig):
         # Dataset Args
         self.config["dataset"] = None
         self.config["dataset_kwargs"] = {}
+
+        self.config["validation_dataset"] = None
         self.config["validation_dataset_kwargs"] = None
 
         # Processor arguments
@@ -219,6 +221,9 @@ class Config(BareConfig):
         # Return the model
         alg_class = vars(research.algs)[self["alg"]]
         dataset_class = None if self["dataset"] is None else vars(research.datasets)[self["dataset"]]
+        validation_dataset_class = (
+            None if self["validation_dataset"] is None else vars(research.datasets)[self["validation_dataset"]]
+        )
         network_class = None if self["network"] is None else vars(research.networks)[self["network"]]
         optim_class = None if self["optim"] is None else vars(torch.optim)[self["optim"]]
         processor_class = None if self["processor"] is None else vars(research.processors)[self["processor"]]
@@ -230,6 +235,7 @@ class Config(BareConfig):
             dataset_class,
             network_kwargs=self["network_kwargs"],
             dataset_kwargs=self["dataset_kwargs"],
+            validation_dataset_class=validation_dataset_class,
             validation_dataset_kwargs=self["validation_dataset_kwargs"],
             processor_class=processor_class,
             processor_kwargs=self["processor_kwargs"],
