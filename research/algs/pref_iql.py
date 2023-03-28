@@ -131,7 +131,7 @@ class PreferenceIQL(OffPolicyAlgorithm):
         # and use the target_q value though the JAX IQL recomputes both
         # Pytorch IQL versions have not.
         with torch.no_grad():
-            adv = target_q - torch.mean(vs, dim=0)[0]  # min trick is not used on value.
+            adv = target_q - torch.mean(vs, dim=0)  # min trick is not used on value.
             exp_adv = torch.exp(adv / self.beta)
             if self.clip_score is not None:
                 exp_adv = torch.clamp(exp_adv, max=self.clip_score)
@@ -153,7 +153,7 @@ class PreferenceIQL(OffPolicyAlgorithm):
         # Next, Finally update the critic
         with torch.no_grad():
             next_vs = self.network.value(next_obs)
-            next_v = torch.mean(next_vs, dim=0, keepdim=True)
+            next_v = torch.mean(next_vs, dim=0, keepdim=True)  # Min trick is not used on value.
             reward = self.network.reward(obs, action)
             target = reward + batch["discount"] * next_v  # use the predicted reward.
         qs = self.network.critic(obs, action)
@@ -180,9 +180,9 @@ class PreferenceIQL(OffPolicyAlgorithm):
 
     def train_step(self, batch: Dict, step: int, total_steps: int) -> Dict:
         all_metrics = {}
+        # NOTE: Currently this does not handle using an encoder for the reward function.
 
         replay_batch, feedback_batch = batch
-
         if step < self.reward_steps:
             # Update the reward network
             metrics = self._update_reward(feedback_batch)

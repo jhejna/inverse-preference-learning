@@ -1,5 +1,5 @@
 {
-    "base": ["configs/offline_d4rl/iplearn.yaml", "configs/offline_d4rl/pref_iql.yaml"],
+    "base": "configs/offline_d4rl/pref_iql.yaml",
     "paired_keys": [
         ["eval_env", "dataset_kwargs.replay_kwargs.name", "dataset_kwargs.feedback_kwargs.path"]
     ],

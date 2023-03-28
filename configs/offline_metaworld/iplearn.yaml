@@ -3,7 +3,8 @@ alg_kwargs:
   tau: 0.005
   beta: 0.25
   chi2_coeff: 0.5
-  feedback_proportion: 0.5
+  chi2_replay_weight: 0.5
+  policy_replay_weight: 0.5
   use_min_target: False
   # Configure offline steps. These aren't needed, but good to set.
   offline_steps: -1

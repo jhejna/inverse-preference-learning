@@ -1,9 +1,7 @@
 alg: IQL
 alg_kwargs:
-  tau: 0.005
-  target_freq: 1
   expectile: 0.7
-  beta: 0.333333333
+  beta: 0.33333333
   # Configure offline steps. These aren't needed, but good to set.
   offline_steps: -1
   random_steps: 0
@@ -35,8 +33,9 @@ eval_env: hopper-medium-replay-v2
 
 dataset: D4RLDataset
 dataset_kwargs:
-  name: hopper-medium-replay-v2
   distributed: False
+  d4rl_path: ../datasets/d4rl/
+  name: hopper-medium-replay-v2
   batch_size: 256
   discount: 0.99
   normalize_reward: True

@@ -5,7 +5,8 @@ alg_kwargs:
   max_feedback: 8000
   init_feedback_size: 40
   chi2_coeff: 0.5
-  feedback_proportion: 0.5
+  chi2_replay_weight: 0.5
+  policy_replay_weight: 0.5
   use_min_target: False
   use_soft_target: False
 
