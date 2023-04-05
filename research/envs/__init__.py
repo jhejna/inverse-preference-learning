@@ -5,7 +5,7 @@ from .base import Empty
 import d4rl
 
 # Import the robomimic enviroments
-from .robomimic_env import RoboMimicEnv
+# from .robomimic_env import RoboMimicEnv # Awaiting Numba release
 
 # If we want to register environments in gym.
 # These will be loaded when we import the research package.

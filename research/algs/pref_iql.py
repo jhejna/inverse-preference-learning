@@ -6,7 +6,7 @@ import torch
 
 from research.networks.base import ActorCriticValueRewardPolicy
 
-from .base import Algorithm
+from .off_policy_algorithm import OffPolicyAlgorithm
 
 
 def iql_loss(pred, target, expectile=0.5):
@@ -15,7 +15,7 @@ def iql_loss(pred, target, expectile=0.5):
     return weight * torch.square(err)
 
 
-class PreferenceIQL(Algorithm):
+class PreferenceIQL(OffPolicyAlgorithm):
     def __init__(
         self,
         *args,
@@ -87,7 +87,6 @@ class PreferenceIQL(Algorithm):
 
         # Compute shapes and add everything to the batch dimension
         B, S = obs.shape[:2]
-        S -= 1  # Subtract one for the next obs sequence.
         flat_obs_shape = (B * S,) + obs.shape[2:]
         flat_action_shape = (B * S,) + action.shape[2:]
         obs = obs.view(flat_obs_shape)
@@ -107,6 +106,8 @@ class PreferenceIQL(Algorithm):
         self.optim["reward"].zero_grad(set_to_none=True)
         reward_loss.backward()
         self.optim["reward"].step()
+
+        return dict(reward_loss=reward_loss.item(), reward=reward.mean().item())
 
     def _update_iql(self, batch):
         # Run the encoders
@@ -130,7 +131,7 @@ class PreferenceIQL(Algorithm):
         # and use the target_q value though the JAX IQL recomputes both
         # Pytorch IQL versions have not.
         with torch.no_grad():
-            adv = target_q - torch.mean(vs, dim=0)[0]  # min trick is not used on value.
+            adv = target_q - torch.mean(vs, dim=0)  # min trick is not used on value.
             exp_adv = torch.exp(adv / self.beta)
             if self.clip_score is not None:
                 exp_adv = torch.clamp(exp_adv, max=self.clip_score)
@@ -152,7 +153,7 @@ class PreferenceIQL(Algorithm):
         # Next, Finally update the critic
         with torch.no_grad():
             next_vs = self.network.value(next_obs)
-            next_v = torch.mean(next_vs, dim=0, keepdim=True)
+            next_v = torch.mean(next_vs, dim=0, keepdim=True)  # Min trick is not used on value.
             reward = self.network.reward(obs, action)
             target = reward + batch["discount"] * next_v  # use the predicted reward.
         qs = self.network.critic(obs, action)
@@ -179,9 +180,9 @@ class PreferenceIQL(Algorithm):
 
     def train_step(self, batch: Dict, step: int, total_steps: int) -> Dict:
         all_metrics = {}
+        # NOTE: Currently this does not handle using an encoder for the reward function.
 
         replay_batch, feedback_batch = batch
-
         if step < self.reward_steps:
             # Update the reward network
             metrics = self._update_reward(feedback_batch)
@@ -192,8 +193,8 @@ class PreferenceIQL(Algorithm):
         # Determine which data to use for training
         if replay_batch is None or "obs" not in replay_batch:
             # Construct an IQL training batch from the replay batch
-            obs = torch.cat([batch["obs_1"], batch["obs_2"]], dim=0)  # (B, S+1)
-            action = torch.cat([batch["action_1"], batch["action_2"]], dim=0)  # (B, S+1)
+            obs = torch.cat([feedback_batch["obs_1"], feedback_batch["obs_2"]], dim=0)  # (B, S+1)
+            action = torch.cat([feedback_batch["action_1"], feedback_batch["action_2"]], dim=0)  # (B, S+1)
             discount = feedback_batch["discount"].repeat(2)
 
             # Compute shapes and add everything to the batch dimension
@@ -201,9 +202,9 @@ class PreferenceIQL(Algorithm):
             S -= 1  # Subtract one for the next obs sequence.
             flat_obs_shape = (B * S,) + obs.shape[2:]
             flat_action_shape = (B * S,) + action.shape[2:]
-            next_obs = obs[:, 1:].view(flat_obs_shape)
-            obs = obs[:, :-1].view(flat_obs_shape)
-            action = action[:, :-1].view(flat_action_shape)
+            next_obs = obs[:, 1:].reshape(flat_obs_shape)
+            obs = obs[:, :-1].reshape(flat_obs_shape)
+            action = action[:, :-1].reshape(flat_action_shape)
             discount = discount.unsqueeze(1).repeat(1, S).flatten()
             replay_batch = dict(obs=obs, action=action, next_obs=next_obs, discount=discount)
         else:

@@ -1,0 +1,9 @@
+{
+    "base": ["configs/offline_d4rl/iql.yaml"],
+    "paired_keys": [
+        ["eval_env", "dataset_kwargs.name"]
+    ],
+    "eval_env": ["hopper-medium-replay-v2", "hopper-medium-expert-v2", "walker2d-medium-replay-v2", "walker2d-medium-expert-v2"],
+    "dataset_kwargs.name": ["hopper-medium-replay-v2", "hopper-medium-expert-v2", "walker2d-medium-replay-v2", "walker2d-medium-expert-v2"],
+    "seed": [1, 2]
+}

@@ -1,11 +1,12 @@
 import io
 import math
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 
 import gym
 import numpy as np
 import torch
 
+import research
 from research.utils import utils
 
 from .replay_buffer import ReplayBuffer, get_buffer_bytes
@@ -26,7 +27,6 @@ class PairwiseComparisonDataset(torch.utils.data.IterableDataset):
     ):
         super().__init__()
         self.discount = discount
-        self.nstep = nstep
         self.batch_size = 1 if batch_size is None else batch_size
         self.segment_size = segment_size
         self.subsample_size = subsample_size
@@ -38,11 +38,11 @@ class PairwiseComparisonDataset(torch.utils.data.IterableDataset):
                 data = np.load(f)
                 data = utils.nest_dict(data)
             # Set the buffers to be the stored data. Woot woot.
-            self.obs_1_buffer = data["obs_1"]
-            self.obs_2_buffer = data["obs_2"]
-            self.action_1_buffer = data["action_1"]
-            self.action_2_buffer = data["action_2"]
-            self.label_buffer = data["label"]
+            self.obs_1_buffer = utils.remove_float64(data["obs_1"])
+            self.obs_2_buffer = utils.remove_float64(data["obs_2"])
+            self.action_1_buffer = utils.remove_float64(data["action_1"])
+            self.action_2_buffer = utils.remove_float64(data["action_2"])
+            self.label_buffer = utils.remove_float64(data["label"])
             self._size = len(self.label_buffer)
         else:
             # Construct the buffers
@@ -111,7 +111,9 @@ class PairwiseComparisonDataset(torch.utils.data.IterableDataset):
             action_2 = self.action_2_buffer[idxs, start:end]
             label = self.label_buffer[idxs]
 
-        return dict(obs_1=obs_1, obs_2=obs_2, action_1=action_1, action_2=action_2, label=label, discount=self.discount)
+        batch_size = len(idxs)
+        discount = self.discount * np.ones(batch_size, dtype=np.float32) if self.batch_size > 1 else self.discount
+        return dict(obs_1=obs_1, obs_2=obs_2, action_1=action_1, action_2=action_2, label=label, discount=discount)
 
     def save(self, path):
         # Save everything to the path via savez
@@ -169,17 +171,19 @@ class ReplayAndFeedbackBuffer(torch.utils.data.IterableDataset):
         self,
         observation_space: gym.Space,
         action_space: gym.Space,
-        replay_class: torch.utils.data.IterableDataset = EmptyDataset,
-        feedback_class: torch.utils.data.IterableDataset = PairwiseComparisonDataset,
+        replay_class: Union[str, torch.utils.data.IterableDataset] = EmptyDataset,
+        feedback_class: Union[str, torch.utils.data.IterableDataset] = PairwiseComparisonDataset,
         replay_kwargs: Dict = {},
         feedback_kwargs: Dict = {},
         **kwargs,
     ):
         replay_kwargs = replay_kwargs.copy()
         replay_kwargs.update(kwargs)
+        replay_class = vars(research.datasets)[replay_class] if isinstance(replay_class, str) else replay_class
         self.replay_buffer = replay_class(observation_space, action_space, **replay_kwargs)
         feedback_kwargs = feedback_kwargs.copy()
         feedback_kwargs.update(kwargs)
+        feedback_class = vars(research.datasets)[feedback_class] if isinstance(feedback_class, str) else feedback_class
         self.feedback_dataset = feedback_class(observation_space, action_space, **feedback_kwargs)
 
     def __iter__(self):
@@ -201,6 +205,6 @@ class ReplayAndFeedbackBuffer(torch.utils.data.IterableDataset):
             if feedback_data is None:
                 # Check once to re-add. If this is the first epoch, we may get None back.
                 feedback_iter = iter(self.feedback_dataset)
-                feedback_data = next(feedback_iter)
+                feedback_data = next(feedback_iter, None)
 
-            return replay_data, feedback_data
+            yield replay_data, feedback_data

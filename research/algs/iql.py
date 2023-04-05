@@ -6,7 +6,7 @@ import torch
 
 from research.networks.base import ActorCriticValuePolicy
 
-from .base import Algorithm
+from .off_policy_algorithm import OffPolicyAlgorithm
 
 
 def iql_loss(pred, target, expectile=0.5):
@@ -15,7 +15,7 @@ def iql_loss(pred, target, expectile=0.5):
     return weight * torch.square(err)
 
 
-class IQL(Algorithm):
+class IQL(OffPolicyAlgorithm):
     def __init__(
         self,
         *args,
@@ -37,7 +37,6 @@ class IQL(Algorithm):
             float(self.processor.action_space.low.min()),
             float(self.processor.action_space.high.max()),
         ]
-        self.reward_criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
 
     def setup_network(self, network_class: Type[torch.nn.Module], network_kwargs: Dict) -> None:
         self.network = network_class(
@@ -75,8 +74,6 @@ class IQL(Algorithm):
         self.optim["value"] = self.optim_class(self.network.value.parameters(), **value_kwargs)
 
     def train_step(self, batch: Dict, step: int, total_steps: int) -> Dict:
-        all_metrics = {}
-
         # Run the encoders
         obs = self.network.encoder(batch["obs"])
         with torch.no_grad():
@@ -98,7 +95,7 @@ class IQL(Algorithm):
         # and use the target_q value though the JAX IQL recomputes both
         # Pytorch IQL versions have not.
         with torch.no_grad():
-            adv = target_q - torch.mean(vs, dim=0)[0]  # min trick is not used on value.
+            adv = target_q - torch.mean(vs, dim=0)  # min trick is not used on value.
             exp_adv = torch.exp(adv / self.beta)
             if self.clip_score is not None:
                 exp_adv = torch.clamp(exp_adv, max=self.clip_score)
@@ -120,7 +117,7 @@ class IQL(Algorithm):
         # Next, Finally update the critic
         with torch.no_grad():
             next_vs = self.network.value(next_obs)
-            next_v = torch.mean(next_vs, dim=0, keepdim=True)
+            next_v = torch.mean(next_vs, dim=0, keepdim=True)  # Min trick is not used on value.
             target = batch["reward"] + batch["discount"] * next_v  # use the predicted reward.
         qs = self.network.critic(obs, action)
         q_loss = torch.nn.functional.mse_loss(qs, target.expand(qs.shape[0], -1), reduction="none").mean()
@@ -128,15 +125,6 @@ class IQL(Algorithm):
         self.optim["critic"].zero_grad(set_to_none=True)
         q_loss.backward()
         self.optim["critic"].step()
-
-        return dict(
-            q_loss=q_loss.item(),
-            v_loss=v_loss.item(),
-            actor_loss=actor_loss.item(),
-            v=vs.mean().item(),
-            q=qs.mean().item(),
-            adv=adv.mean().item(),
-        )
 
         # Update the networks. These are done in a stack to support different grad options for the encoder.
         if step % self.target_freq == 0:
@@ -151,7 +139,14 @@ class IQL(Algorithm):
                 ):
                     target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
 
-        return all_metrics
+        return dict(
+            q_loss=q_loss.item(),
+            v_loss=v_loss.item(),
+            actor_loss=actor_loss.item(),
+            v=vs.mean().item(),
+            q=qs.mean().item(),
+            adv=adv.mean().item(),
+        )
 
     def _predict(self, batch: Dict, sample: bool = False) -> torch.Tensor:
         with torch.no_grad():

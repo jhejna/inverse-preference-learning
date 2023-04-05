@@ -1,0 +1,10 @@
+{
+    "base": ["configs/offline_metaworld/iplearn.yaml", "configs/offline_metaworld/pref_iql.yaml"],
+    "eval_env": ["mw_drawer-open-v2"],
+    "dataset_kwargs.feedback_kwargs.path": [
+        "../datasets/ihlearn/metaworld_compare/drawer-open_split-100-even_eps-1.0.npz",
+        "../datasets/ihlearn/metaworld_compare/drawer-open_bias-onlywithin_eps-1.0_10k.npz",
+        "../datasets/ihlearn/metaworld_compare/drawer-open_bias-onlywithin_eps-1.0_20k.npz"
+    ],
+    "seed": [1, 2]
+}

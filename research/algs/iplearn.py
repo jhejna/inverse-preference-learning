@@ -27,7 +27,8 @@ class IPLearnBase(OffPolicyAlgorithm):
         target_freq: int = 2,
         use_min_target: bool = True,
         chi2_coeff: float = 0.5,
-        feedback_proportion: Optional[float] = None,
+        chi2_replay_weight: Optional[float] = None,
+        policy_replay_weight: Optional[float] = None,
         reward_freq: int = 5000,
         max_feedback: int = 1000,
         init_feedback_size: int = 64,
@@ -43,7 +44,8 @@ class IPLearnBase(OffPolicyAlgorithm):
         self.target_freq = target_freq
         self.use_min_target = use_min_target
         self.chi2_coeff = chi2_coeff
-        self.feedback_proportion = feedback_proportion
+        self.chi2_replay_weight = chi2_replay_weight
+        self.policy_replay_weight = policy_replay_weight
         self.action_range = [
             float(self.processor.action_space.low.min()),
             float(self.processor.action_space.high.max()),
@@ -56,6 +58,7 @@ class IPLearnBase(OffPolicyAlgorithm):
         self.feedback_schedule = feedback_schedule
         self.feedback_sample_multiplier = feedback_sample_multiplier
         self.num_uniform_feedback = num_uniform_feedback
+        self.reward_criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
 
         # Initialize feedback parameters
         self._total_feedback = 0
@@ -131,35 +134,35 @@ class IPLearnBase(OffPolicyAlgorithm):
         else:
             # Else, collect segments via disagreement
             queries = self._get_queries(batch_size=int(batch_size * self.feedback_sample_multiplier))
-            queries = utils.to_device(utils.to_tensor(queries), self.device)
+            feedback_batch = utils.to_device(utils.to_tensor(queries), self.device)
             # Compute disagreement via the ensemble
             with torch.no_grad():
                 # We need to repeat the steps for reward computation with the network here
                 # see train_step for more comments
-                B_fb, S_fb = queries["obs_1"].shape[:2]
+                B_fb, S_fb = feedback_batch["obs_1"].shape[:2]
                 S_fb -= 1  # Subtract one for the next_obs offset
-                flat_obs_fb_shape = (B_fb * S_fb,) + queries["obs_1"].shape[2:]
-                flat_action_fb_shape = (B_fb * S_fb,) + queries["action_1"].shape[2:]
+                flat_obs_fb_shape = (B_fb * S_fb,) + feedback_batch["obs_1"].shape[2:]
+                flat_action_fb_shape = (B_fb * S_fb,) + feedback_batch["action_1"].shape[2:]
 
                 # Construct obs, action, next_obs batches
                 obs = torch.cat(
                     [
-                        queries["obs_1"][:, :-1].view(*flat_obs_fb_shape),
-                        queries["obs_2"][:, :-1].view(*flat_obs_fb_shape),
+                        feedback_batch["obs_1"][:, :-1].reshape(*flat_obs_fb_shape),
+                        feedback_batch["obs_2"][:, :-1].reshape(*flat_obs_fb_shape),
                     ],
                     dim=0,
                 )
                 action = torch.cat(
                     [
-                        queries["action_1"][:, :-1].view(*flat_action_fb_shape),
-                        queries["action_2"][:, :-1].view(*flat_action_fb_shape),
+                        feedback_batch["action_1"][:, :-1].reshape(*flat_action_fb_shape),
+                        feedback_batch["action_2"][:, :-1].reshape(*flat_action_fb_shape),
                     ],
                     dim=0,
                 )
                 next_obs = torch.cat(
                     [
-                        queries["obs_1"][:, 1:].view(*flat_obs_fb_shape),
-                        queries["obs_2"][:, 1:].view(*flat_obs_fb_shape),
+                        feedback_batch["obs_1"][:, 1:].reshape(*flat_obs_fb_shape),
+                        feedback_batch["obs_2"][:, 1:].reshape(*flat_obs_fb_shape),
                     ],
                     dim=0,
                 )
@@ -171,7 +174,7 @@ class IPLearnBase(OffPolicyAlgorithm):
                 # Compute reward
                 qs = self.network.critic(obs, action)
                 reward = qs - self.dataset.replay_buffer.discount * self._compute_next_V(next_obs)
-                r1, r2 = reward.chunk(reward, 2, dim=1)  # Shape (E, B_fb * S_fb)
+                r1, r2 = torch.chunk(reward, 2, dim=1)  # Shape (E, B_fb * S_fb)
                 E, B_times_S = r1.shape
                 assert B_times_S == B_fb * S_fb
 
@@ -237,8 +240,8 @@ class IPLearnBase(OffPolicyAlgorithm):
         # First collect all the shapes
         B_fb, S_fb = feedback_batch["obs_1"].shape[:2]
         S_fb -= 1  # Subtract one for the next_obs offset
-        flat_obs_fb_shape = (B_fb * S_fb,) + feedback_batch["obs"].shape[2:]
-        flat_action_fb_shape = (B_fb * S_fb,) + feedback_batch["action"].shape[2:]
+        flat_obs_fb_shape = (B_fb * S_fb,) + feedback_batch["obs_1"].shape[2:]
+        flat_action_fb_shape = (B_fb * S_fb,) + feedback_batch["action_1"].shape[2:]
         B_r = replay_batch["obs"].shape[0] if using_replay_batch else 0
 
         # Compute the split over observations between feedback and replay batches
@@ -247,31 +250,32 @@ class IPLearnBase(OffPolicyAlgorithm):
         # Construct one large batch for each of obs, action, next obs, discount
         obs = torch.cat(
             [
-                feedback_batch["obs_1"][:, :-1].view(*flat_obs_fb_shape),
-                feedback_batch["obs_2"][:, :-1].view(*flat_obs_fb_shape),
-                *(replay_batch["obs"] if using_replay_batch else ()),
+                feedback_batch["obs_1"][:, :-1].reshape(*flat_obs_fb_shape),
+                feedback_batch["obs_2"][:, :-1].reshape(*flat_obs_fb_shape),
+                *((replay_batch["obs"],) if using_replay_batch else ()),
             ],
             dim=0,
         )
         action = torch.cat(
             [
-                feedback_batch["action_1"][:, :-1].view(*flat_action_fb_shape),
-                feedback_batch["action_2"][:, :-1].view(*flat_action_fb_shape),
-                *(replay_batch["action"] if using_replay_batch else ()),
+                feedback_batch["action_1"][:, :-1].reshape(*flat_action_fb_shape),
+                feedback_batch["action_2"][:, :-1].reshape(*flat_action_fb_shape),
+                *((replay_batch["action"],) if using_replay_batch else ()),
             ],
             dim=0,
         )
         next_obs = torch.cat(
             [
-                feedback_batch["obs_1"][:, 1:].view(*flat_obs_fb_shape),
-                feedback_batch["obs_2"][:, 1:].view(*flat_obs_fb_shape),
-                *(replay_batch["next_obs"] if using_replay_batch else ()),
+                feedback_batch["obs_1"][:, 1:].reshape(*flat_obs_fb_shape),
+                feedback_batch["obs_2"][:, 1:].reshape(*flat_obs_fb_shape),
+                *((replay_batch["next_obs"],) if using_replay_batch else ()),
             ],
             dim=0,
         )
         # Make the fb discount exactly match the flat_shape.
-        discount_fb = feedback_batch["discount"].unsqueeze(1).repeat(1, S_fb).flatten().repeat(2)
-        discount = torch.cat((discount_fb, replay_batch["discount"]), dim=0)
+        discount = feedback_batch["discount"].unsqueeze(1).repeat(1, S_fb).flatten().repeat(2)
+        if using_replay_batch:
+            discount = torch.cat((discount, replay_batch["discount"]), dim=0)
 
         # Apply Encoders
         obs = self.network.encoder(obs)
@@ -294,27 +298,39 @@ class IPLearnBase(OffPolicyAlgorithm):
         q_loss = self.reward_criterion(logits, labels).mean()
 
         # Compute the Chi2 Loss over EVERYTHING, including replay data
-        if self.feedback_ratio is not None and B_r > 0:
+        if self.chi2_replay_weight is not None and B_r > 0:
             # This tries to balance the loss over data points.
             chi2_loss_fb = 1 / (8 * self.chi2_coeff) * (torch.square(r1).mean() + torch.square(r2).mean())
             chi2_loss_replay = 1 / (4 * self.chi2_coeff) * torch.square(rr).mean()
-            chi2_loss = self.feedback_proportion * chi2_loss_fb + (1 - self.feedback_proportion) * chi2_loss_replay
+            chi2_loss = (1 - self.chi2_replay_weight) * chi2_loss_fb + self.chi2_replay_weight * chi2_loss_replay
         else:
-            chi2_loss = 1 / (4 * self.chi2_coeff) * (reward**2).mean()
+            chi2_loss = 1 / (4 * self.chi2_coeff) * (reward**2).mean()  # Otherwise compute over all
 
         self.optim["critic"].zero_grad(set_to_none=True)
         (q_loss + chi2_loss).backward()
         self.optim["critic"].step()
 
         # Next, call the actor function to update the actor
-        # Before we do that, we rebalance the batches if feedback_ratio is not None.
-        if self.feedback_ratio is not None and B_r > 0:
-            num_fb_data_points = min(B_r * self.feedback_proportion / (1 - self.feedback_proportion), 2 * B_fb * S_fb)
-            fb_idx = torch.randperm(2 * B_fb, *S_fb, device=self.device)[:num_fb_data_points]
-            replay_idx = torch.arange(*B_fb * S_fb, B_total, device=self.device)
+        # Before we do that, we rebalance the batches if policy_replay_weight is not None.
+        if self.policy_replay_weight is not None and B_r > 0:
+            # If policy replay weight is 1, only use data from the replay buffer
+            # If policy replay weight is 0, only use data from the feedback batch
+            # If policy weight is 0.5, use half from each
+            fb_ratio = (1 - self.policy_replay_weight) / (self.policy_replay_weight + 1e-5)
+            num_fb_data_points = int(B_r * fb_ratio)
+            if num_fb_data_points > 2 * B_fb * S_fb:
+                # We need to reduce the number of replay datapoints in order to attain the desired ratio.
+                num_fb_data_points = 2 * B_fb * S_fb
+                replay_ratio = (self.policy_replay_weight) / (1 - self.policy_replay_weight + 1e-5)
+                num_replay_data_points = int(2 * B_fb * S_fb * replay_ratio)
+            else:
+                num_replay_data_points = B_r
+
+            fb_idx = torch.randperm(2 * B_fb * S_fb, device=self.device)[:num_fb_data_points]
+            replay_idx = torch.arange(2 * B_fb * S_fb, 2 * B_fb * S_fb + num_replay_data_points, device=self.device)
             idx = torch.cat((fb_idx, replay_idx), dim=0)
             # Sub-sample to maintain balance when updating the actor.
-            obs, action, qs = obs[idx], action[idx], qs[:, idx]
+            obs, action, qs = obs[idx], action[idx], qs[:, idx]  # Note the ensemble dim.
 
         metrics = self._update_actor(obs, action, qs)  # Cache the computation of q
         all_metrics.update(metrics)
@@ -372,16 +388,19 @@ class IPLearnSAC(IPLearnBase):
     def __init__(
         self,
         *args,
+        target_freq: int = 2,  # NOTE: Diff default target freq for online and offline.
         init_temperature: float = 0.1,
         bc_coeff=0.0,
         target_entropy: Optional[float] = None,
+        learn_temperature: bool = True,
         # all of the other kwargs for reward
         use_soft_target: bool = True,
         **kwargs,
     ):
         # Save values needed for optim setup.
         self.init_temperature = init_temperature
-        super().__init__(*args, **kwargs)
+        self.learn_temperature = learn_temperature
+        super().__init__(*args, target_freq=target_freq, **kwargs)
 
         # SAC parameters
         self.bc_coeff = bc_coeff
@@ -410,9 +429,10 @@ class IPLearnSAC(IPLearnBase):
             else:
                 assert isinstance(value, dict), "Special keys must be kwarg dicts"
 
-        log_alpha_kwargs = default_kwargs.copy()
-        log_alpha_kwargs.update(self.optim_kwargs.get("log_alpha", dict()))
-        self.optim["log_alpha"] = self.optim_class([self.log_alpha], **log_alpha_kwargs)
+        if self.learn_temperature:
+            log_alpha_kwargs = default_kwargs.copy()
+            log_alpha_kwargs.update(self.optim_kwargs.get("log_alpha", dict()))
+            self.optim["log_alpha"] = self.optim_class([self.log_alpha], **log_alpha_kwargs)
 
     def _compute_next_V(self, next_obs):
         with torch.no_grad():
@@ -436,7 +456,7 @@ class IPLearnSAC(IPLearnBase):
         action_pi = dist.rsample()
         log_prob = dist.log_prob(action_pi).sum(dim=-1)
         qs_pi = self.network.critic(obs, action_pi)
-        q_pi = torch.mean(qs_pi, dim=0)[0]  # Note: changed to mean from min.
+        q_pi = torch.mean(qs_pi, dim=0)  # Note: changed to mean from min.
         actor_loss = (self.alpha.detach() * log_prob - q_pi).mean()
         if self.bc_coeff > 0.0:
             bc_loss = -dist.log_prob(action).sum(dim=-1).mean()  # Simple NLL loss.
@@ -448,14 +468,14 @@ class IPLearnSAC(IPLearnBase):
         entropy = -log_prob.mean()
 
         # Update the learned temperature
-        self.optim["log_alpha"].zero_grad(set_to_none=True)
-        alpha_loss = (self.alpha * (-log_prob - self.target_entropy).detach()).mean()
-        alpha_loss.backward()
-        self.optim["log_alpha"].step()
+        if self.learn_temperature:
+            self.optim["log_alpha"].zero_grad(set_to_none=True)
+            alpha_loss = (self.alpha * (-log_prob - self.target_entropy).detach()).mean()
+            alpha_loss.backward()
+            self.optim["log_alpha"].step()
 
         return dict(
             actor_loss=actor_loss.item(),
-            alpha_loss=alpha_loss.item(),
             alpha=self.alpha.item(),
             entropy=entropy.item(),
         )
@@ -465,13 +485,17 @@ class IPLearnAWAC(IPLearnBase):
     def __init__(
         self,
         *args,
+        target_freq: int = 1,  # NOTE: different init target freq for offline and online.
         beta: float = 0.33,
         clip_score: float = 100.0,
+        max_feedback: int = 0,  # Default to fully offline
+        sample_value: bool = True,
         **kwargs,
     ):
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, target_freq=target_freq, max_feedback=max_feedback, **kwargs)
         self.beta = beta
         self.clip_score = clip_score
+        self.sample_value = sample_value
 
     def _compute_next_V(self, next_obs):
         with torch.no_grad():
@@ -492,7 +516,9 @@ class IPLearnAWAC(IPLearnBase):
         # Sometimes this is also computed using the target network as target_q - Q(s, pi(s))
         # but in our case that doesn't make sense since we don't have the reward!
         with torch.no_grad():
-            action_pi = dist.sample() if isinstance(dist, torch.distributions.Distribution) else dist
+            action_pi = (
+                dist.sample() if isinstance(dist, torch.distributions.Distribution) and self.sample_value else dist
+            )
             adv = qs.mean(dim=0) - self.network.critic(obs, action_pi).mean(dim=0)
             exp_adv = torch.exp(adv / self.beta)
             if self.clip_score is not None:
