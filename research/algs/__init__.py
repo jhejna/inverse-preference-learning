@@ -5,3 +5,4 @@ from .iql import IQL
 from .pebble import PEBBLE
 from .iplearn import IPLearnSAC, IPLearnAWAC
 from .pref_iql import PreferenceIQL
+from .iplearnv import IPLearnVAWAC
