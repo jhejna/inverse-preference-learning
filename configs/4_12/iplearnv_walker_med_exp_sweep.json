@@ -10,7 +10,7 @@
     ],
     "alg_kwargs.policy_replay_weight": [0.0, 0.5],
     "alg_kwargs.value_replay_weight": [0.0, 0.5],
-    "alg_kwargs.actor_replay_weight": [0.0, 0.5],
+    "alg_kwargs.chi2_replay_weight": [0.0, 0.5],
     "alg_kwargs.expectile": [0.7, 0.8],
     "alg_kwargs.beta": [0.3, 0.15],
     "dataset_kwargs.replay_kwargs.batch_size": [512],
