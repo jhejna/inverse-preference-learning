@@ -1,7 +1,11 @@
-alg: IQL
+alg: IPLearnAWAC
 alg_kwargs:
-  expectile: 0.7
-  beta: 0.33333333
+  tau: 0.005
+  beta: 2.0
+  chi2_coeff: 0.5
+  chi2_replay_weight: 0.5
+  policy_replay_weight: 0.5
+  use_min_target: True
   # Configure offline steps. These aren't needed, but good to set.
   offline_steps: -1
   random_steps: 0
@@ -10,36 +14,44 @@ optim: Adam
 optim_kwargs:
   lr: 0.0003
 
-network: ActorCriticValuePolicy
+network: ActorCriticPolicy
 network_kwargs:
   actor_class: DiagonalGaussianMLPActor
   actor_kwargs:
     log_std_bounds: [-5, 2]
-    dropout: 0.0 # only actor gets dropout sometimes.
     output_act: ["import", "torch.nn", "Tanh"]
     state_dependent_log_std: False
     log_std_tanh: False
     squash_normal: False
+    dropout: 0.1
   critic_class: ContinuousMLPCritic
   critic_kwargs:
     ensemble_size: 2
-  value_class: MLPValue
-  value_kwargs:
-    ensemble_size: 1
   hidden_layers: [256, 256]
   ortho_init: True
 
-eval_env: hopper-medium-replay-v2
+eval_env: RoboMimicEnv
+eval_env_kwargs:
+  path: /iliad/u/jhejna/dependencies/robomimic/datasets/can/ph/low_dim.hdf5
 
-dataset: D4RLDataset
+dataset: ReplayAndFeedbackBuffer
 dataset_kwargs:
-  distributed: False
-  d4rl_path: ../datasets/d4rl/
-  name: hopper-medium-replay-v2
-  batch_size: 256
+  replay_class: RobomimicDataset
+  replay_kwargs:
+    path: /iliad/u/jhejna/dependencies/robomimic/datasets/can/ph/low_dim.hdf5
+    distributed: False
+    batch_size: 256
+    discount: 0.99
+  feedback_class: PairwiseComparisonDataset
+  feedback_kwargs:
+    path: ../datasets/ihlearn/preference_transformer/Can/num100_q50_human_train.npz
+    capacity: null
+    batch_size: 8
+    segment_size: 50
+    subsample_size: 32
   discount: 0.99
-  normalize_reward: True
-  action_eps: 0.00001 # necesary to prevent NaN in the dataset.
+
+processor: null
 
 schedule:
   actor: ["import", "torch.optim.lr_scheduler", "CosineAnnealingLR"]
@@ -47,15 +59,13 @@ schedule_kwargs:
   actor:
     T_max: 1000000
 
-processor: null
-
 trainer_kwargs: # Arguments given to Algorithm.train
   total_steps: 1000000 # The total number of steps to train
   log_freq: 500 # How often to log values
-  eval_freq: 5000 # How often to run evals
+  eval_freq: 50000 # How often to run evals
   eval_fn: eval_policy
   eval_kwargs:
-    num_ep: 10 # Number of enviornment episodes to run for evaluation
+    num_ep: 25 # Number of enviornment episodes to run for evaluation
   loss_metric: reward # The validation metric that determines when to save the "best_checkpoint"
   train_dataloader_kwargs:
     num_workers: 0

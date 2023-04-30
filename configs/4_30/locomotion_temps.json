@@ -1,0 +1,17 @@
+{
+    "base": "configs/offline_d4rl/iplearnv.yaml",
+    "paired_keys": [
+        ["eval_env", "dataset_kwargs.replay_kwargs.name", "dataset_kwargs.feedback_kwargs.path"]
+    ],
+    "eval_env": ["hopper-medium-replay-v2", "hopper-medium-expert-v2", "walker2d-medium-replay-v2", "walker2d-medium-expert-v2"],
+    "dataset_kwargs.replay_kwargs.name": ["hopper-medium-replay-v2", "hopper-medium-expert-v2", "walker2d-medium-replay-v2", "walker2d-medium-expert-v2"],
+    "dataset_kwargs.feedback_kwargs.path": [
+        "../datasets/ihlearn/preference_transformer/hopper-medium-replay-v2/num500_human_train.npz",
+        "../datasets/ihlearn/preference_transformer/hopper-medium-expert-v2/num100_human_train.npz",
+        "../datasets/ihlearn/preference_transformer/walker2d-medium-replay-v2/num500_human_train.npz",
+        "../datasets/ihlearn/preference_transformer/walker2d-medium-expert-v2/num100_human_train.npz"
+    ],
+    "alg_kwargs.expectile": [0.8, 0.7],
+    "alg_kwargs.beta": [0.33333, 0.2],
+    "seed": [1, 2]
+}

@@ -7,7 +7,7 @@ from robosuite.wrappers import GymWrapper
 
 
 class RoboMimicEnv(gym.Env):
-    def __init__(self, path, horizon=500, terminate_on_success=True):
+    def __init__(self, path, horizon=500):
         env_meta = file_utils.get_env_metadata_from_dataset(dataset_path=path)
         env_meta["env_kwargs"]["horizon"] = horizon
         env = env_utils.create_env_from_metadata(

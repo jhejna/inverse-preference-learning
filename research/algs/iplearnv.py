@@ -17,8 +17,8 @@ from .off_policy_algorithm import OffPolicyAlgorithm
 
 class IPLearnVBase(OffPolicyAlgorithm):
     """
-    This is the general IP-Learn algorithm for online learning
-    The main differences between this and the offline implementation are:
+    This is the general IP-Learn algorithm but it includes an additional value function.
+    The value function is fit with the expectile loss function.
     """
 
     def __init__(
