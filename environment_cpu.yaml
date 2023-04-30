@@ -3,7 +3,7 @@ channels:
   - pytorch-nightly
   - default
 dependencies:
-  - python
+  - python=3.10
 
   # Development
   - black
@@ -22,6 +22,7 @@ dependencies:
   - numpy
   - scipy
   - scikit-image
+  - numba # For Robosuite
 
   # IO
   - imageio

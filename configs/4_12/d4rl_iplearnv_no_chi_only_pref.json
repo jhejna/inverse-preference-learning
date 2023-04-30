@@ -1,0 +1,21 @@
+{
+    "base": "configs/offline_d4rl/iplearnv.yaml",
+    "paired_keys": [
+        ["eval_env", "dataset_kwargs.replay_kwargs.name", "dataset_kwargs.feedback_kwargs.path"],
+        ["alg_kwargs.value_replay_weight", "dataset_kwargs.replay_class"]
+    ],
+    "eval_env": ["hopper-medium-replay-v2", "hopper-medium-expert-v2", "walker2d-medium-replay-v2", "walker2d-medium-expert-v2"],
+    "dataset_kwargs.replay_kwargs.name": ["hopper-medium-replay-v2", "hopper-medium-expert-v2", "walker2d-medium-replay-v2", "walker2d-medium-expert-v2"],
+    "dataset_kwargs.feedback_kwargs.path": [
+        "../datasets/ihlearn/preference_transformer/hopper-medium-replay-v2/num500_human_train.npz",
+        "../datasets/ihlearn/preference_transformer/hopper-medium-expert-v2/num100_human_train.npz",
+        "../datasets/ihlearn/preference_transformer/walker2d-medium-replay-v2/num500_human_train.npz",
+        "../datasets/ihlearn/preference_transformer/walker2d-medium-expert-v2/num100_human_train.npz"
+    ],
+    "alg_kwargs.value_replay_weight": [0.5],
+    "dataset_kwargs.replay_class": [
+        ["import", "research.datasets", "EmptyDataset"]
+    ],
+    "alg_kwargs.chi2_coeff": [10000000],
+    "seed": [1, 2]
+}

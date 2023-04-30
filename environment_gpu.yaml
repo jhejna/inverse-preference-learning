@@ -4,7 +4,7 @@ channels:
   - nvidia
   - defaults
 dependencies:
-  - python=3.11
+  - python=3.10
 
   # Development
   - black
@@ -23,6 +23,7 @@ dependencies:
   - numpy
   - scipy
   - scikit-image
+  - numba # For Robosuite
 
   # IO
   - imageio
