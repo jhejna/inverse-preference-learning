@@ -37,6 +37,7 @@ class PairwiseComparisonDataset(torch.utils.data.IterableDataset):
             with open(path, "rb") as f:
                 data = np.load(f)
                 data = utils.nest_dict(data)
+            print(data["obs_1"].shape, observation_space)
             # Set the buffers to be the stored data. Woot woot.
             self.obs_1_buffer = utils.remove_float64(data["obs_1"])
             self.obs_2_buffer = utils.remove_float64(data["obs_2"])
@@ -77,7 +78,6 @@ class PairwiseComparisonDataset(torch.utils.data.IterableDataset):
             torch.utils.data.get_worker_info() is None
         ), "Cannot add to PairwiseComparisonDataset when parallelism is enabled."
         num_to_add = labels.shape[0]
-
         if self._idx + num_to_add > self._capacity:
             # We have more segments than capacity allows, complete in two writes.
             num_b4_wrap = self._capacity - self._idx

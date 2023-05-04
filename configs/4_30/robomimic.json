@@ -1,7 +1,7 @@
 {
     "base": ["configs/offline_robomimic/iplearnv.yaml", "configs/offline_robomimic/pref_iql.yaml"],
     "paired_keys": [
-        ["eval_env_kwargs.path", "dataset_kwargs.replay_kwargs.path", "dataset_kwargs.feedback_kwargs.path", "dataset_kwargs.feedback_kwargs.segment_size"]
+        ["eval_env_kwargs.path", "dataset_kwargs.replay_kwargs.path", "dataset_kwargs.feedback_kwargs.path", "dataset_kwargs.feedback_kwargs.segment_size", "dataset_kwargs.feedback_kwargs.subsample_size"]
     ],
     "eval_env_kwargs.path": [
         "/iliad/u/jhejna/dependencies/robomimic/datasets/lift/ph/low_dim.hdf5",
@@ -26,6 +26,12 @@
         100,
         50,
         100
+    ],
+    "dataset_kwargs.feedback_kwargs.subsample_size": [
+        32,
+        64,
+        32,
+        64
     ],
     "seed": [1, 2]
 }

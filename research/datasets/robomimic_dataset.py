@@ -1,3 +1,5 @@
+from typing import Optional
+
 import gym
 import h5py
 import numpy as np
@@ -11,9 +13,16 @@ from .replay_buffer import ReplayBuffer
 class RobomimicDataset(ReplayBuffer):
     """
     Simple Class that writes the data from the RoboMimicDatasets into a ReplayBuffer
+
+    While I don't agree with all the decisions made here, this was designed to exactly
+    match the behavior in the PreferenceTransformer Codebase when using the defaults.
+
+    See https://github.com/csmile-1006/PreferenceTransformer/JaxPref/reward_transform.py#L437
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, eps: Optional[float] = 1e-5, separate_validation=False, **kwargs):
+        self.eps = eps
+        self.separate_validation = separate_validation
         super().__init__(*args, **kwargs)
 
     def _data_generator(self):
@@ -38,7 +47,13 @@ class RobomimicDataset(ReplayBuffer):
         worker_id = 0 if worker_info is None else worker_info.id
 
         f = h5py.File(self.path, "r")
-        demos = [elem.decode("utf-8") for elem in np.array(f["mask/train"][:])]  # Extract the training demonstrations
+
+        if self.separate_validation:
+            demos = [
+                elem.decode("utf-8") for elem in np.array(f["mask/train"][:])
+            ]  # Extract the training demonstrations
+        else:
+            demos = list(f["data"].keys())  # Otherwise use all demos
 
         for i, demo in enumerate(demos):
             if i % num_workers != worker_id and len(demos) > num_workers:
@@ -58,13 +73,18 @@ class RobomimicDataset(ReplayBuffer):
             action = np.concatenate((dummy_action, f["data"][demo]["actions"]), axis=0)
             action = remove_float64(action)
 
+            if self.eps is not None:
+                lim = 1 - self.eps
+                action = np.clip(action, -lim, lim)
+
             reward = np.concatenate(([0], f["data"][demo]["rewards"]), axis=0)
             reward = remove_float64(reward)
 
-            done = np.zeros(action.shape[0], dtype=np.bool_)  # Gets recomputed with HER
+            done = np.concatenate(([0], f["data"][demo]["dones"]), axis=0).astype(np.bool_)
             done[-1] = True
-            discount = np.ones(action.shape[0])  # Gets recomputed with HER
-            assert len(obs[self.achieved_key]) == len(action) == len(reward) == len(done) == len(discount)
+
+            discount = (1 - done).astype(np.float32)
+            assert len(obs) == len(action) == len(reward) == len(done) == len(discount)
             kwargs = dict()
             yield (obs, action, reward, done, discount, kwargs)
 

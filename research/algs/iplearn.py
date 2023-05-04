@@ -307,7 +307,6 @@ class IPLearnBase(OffPolicyAlgorithm):
         (q_loss + chi2_loss).backward()
         self.optim["critic"].step()
 
-        
         metrics = self._update_actor(obs, action, qs, split)  # Cache the computation of q
         all_metrics.update(metrics)
 
@@ -428,13 +427,12 @@ class IPLearnSAC(IPLearnBase):
         return next_vs  # Shape (1, B)
 
     def _update_actor(self, obs, action, qs, split):
-
         dist = self.network.actor(obs)
         action_pi = dist.rsample()
         log_prob = dist.log_prob(action_pi).sum(dim=-1)
         qs_pi = self.network.critic(obs, action_pi)
         q_pi = torch.mean(qs_pi, dim=0)  # Note: changed to mean from min.
-        actor_loss = (self.alpha.detach() * log_prob - q_pi)
+        actor_loss = self.alpha.detach() * log_prob - q_pi
         if self.bc_coeff > 0.0:
             bc_loss = -dist.log_prob(action).sum(dim=-1)  # Simple NLL loss.
             actor_loss = actor_loss + self.bc_coeff * bc_loss
@@ -447,7 +445,7 @@ class IPLearnSAC(IPLearnBase):
             actor_loss_replay = ar.mean()
             actor_loss = (1 - self.policy_replay_weight) * actor_loss_fb + self.policy_replay_weight * actor_loss_replay
         else:
-            actor_loss = actor_loss.mean() 
+            actor_loss = actor_loss.mean()
 
         self.optim["actor"].zero_grad(set_to_none=True)
         actor_loss.backward()
@@ -457,15 +455,17 @@ class IPLearnSAC(IPLearnBase):
         # Update the learned temperature
         if self.learn_temperature:
             self.optim["log_alpha"].zero_grad(set_to_none=True)
-            alpha_loss = (self.alpha * (-log_prob - self.target_entropy).detach())
+            alpha_loss = self.alpha * (-log_prob - self.target_entropy).detach()
             if self.policy_replay_weight is not None and split[2] > 0:
                 l1, l2, lr = torch.split(alpha_loss, split, dim=0)
                 # This tries to balance the loss over data points.
                 alpha_loss_fb = (l1.mean() + l2.mean()) / 2
                 alpha_loss_replay = lr.mean()
-                alpha_loss = (1 - self.policy_replay_weight) * alpha_loss_fb + self.policy_replay_weight * alpha_loss_replay
+                alpha_loss = (
+                    1 - self.policy_replay_weight
+                ) * alpha_loss_fb + self.policy_replay_weight * alpha_loss_replay
             else:
-                alpha_loss = alpha_loss.mean() 
+                alpha_loss = alpha_loss.mean()
             alpha_loss.backward()
             self.optim["log_alpha"].step()
 
@@ -526,8 +526,7 @@ class IPLearnAWAC(IPLearnBase):
             bc_loss = torch.nn.functional.mse_loss(dist, action, reduction="none").sum(dim=-1)
         else:
             raise ValueError("Invalid policy output provided")
-        actor_loss = (exp_adv * bc_loss)
-
+        actor_loss = exp_adv * bc_loss
 
         if self.policy_replay_weight is not None and split[2] > 0:
             a1, a2, ar = torch.split(actor_loss, split, dim=0)
@@ -536,7 +535,7 @@ class IPLearnAWAC(IPLearnBase):
             actor_loss_replay = ar.mean()
             actor_loss = (1 - self.policy_replay_weight) * actor_loss_fb + self.policy_replay_weight * actor_loss_replay
         else:
-            actor_loss = actor_loss.mean() 
+            actor_loss = actor_loss.mean()
 
         self.optim["actor"].zero_grad(set_to_none=True)
         actor_loss.backward()

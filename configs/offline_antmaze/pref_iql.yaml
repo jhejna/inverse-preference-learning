@@ -29,6 +29,8 @@ network_kwargs:
   reward_class: ContinuousMLPCritic
   reward_kwargs:
     ensemble_size: 1
+    act: ["import", "torch.nn", "ReLU"]
+    output_act: null
   hidden_layers: [256, 256]
   ortho_init: True
 

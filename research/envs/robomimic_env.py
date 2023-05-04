@@ -7,9 +7,8 @@ from robosuite.wrappers import GymWrapper
 
 
 class RoboMimicEnv(gym.Env):
-    def __init__(self, path, horizon=500):
+    def __init__(self, path):
         env_meta = file_utils.get_env_metadata_from_dataset(dataset_path=path)
-        env_meta["env_kwargs"]["horizon"] = horizon
         env = env_utils.create_env_from_metadata(
             env_meta=env_meta,
             env_name=env_meta["env_name"],
@@ -19,8 +18,19 @@ class RoboMimicEnv(gym.Env):
         ).env
         env.ignore_done = False
         env._max_episode_steps = env.horizon
-
-        self.env = GymWrapper(env)
+        keys = [
+            "object-state",
+            "robot0_joint_pos",
+            "robot0_joint_pos_cos",
+            "robot0_joint_pos_sin",
+            "robot0_joint_vel",
+            "robot0_eef_pos",
+            "robot0_eef_quat",
+            "robot0_gripper_qpos",
+            "robot0_gripper_qvel",
+        ]
+        self.env = GymWrapper(env, keys=keys)
+        self._max_episode_steps = self.env.horizon
         self.observation_space = self.env.observation_space
         self.action_space = self.env.action_space
 

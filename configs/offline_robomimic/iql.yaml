@@ -15,7 +15,6 @@ network_kwargs:
   actor_class: DiagonalGaussianMLPActor
   actor_kwargs:
     log_std_bounds: [-5, 2]
-    dropout: 0.0 # only actor gets dropout sometimes.
     output_act: ["import", "torch.nn", "Tanh"]
     state_dependent_log_std: False
     log_std_tanh: False
