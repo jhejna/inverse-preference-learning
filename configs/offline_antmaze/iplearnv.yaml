@@ -10,6 +10,8 @@ alg_kwargs:
   # Configure offline steps. These aren't needed, but good to set.
   offline_steps: -1
   random_steps: 0
+  target_clipping: False
+  done_is_absorbing: False
 
 optim: Adam
 optim_kwargs:

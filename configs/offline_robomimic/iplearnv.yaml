@@ -10,6 +10,8 @@ alg_kwargs:
   # Configure offline steps. These aren't needed, but good to set.
   offline_steps: -1
   random_steps: 0
+  target_clipping: True
+  done_is_absorbing: False
 
 optim: Adam
 optim_kwargs:
@@ -45,7 +47,6 @@ dataset_kwargs:
     path: /iliad/u/jhejna/dependencies/robomimic/datasets/can/ph/low_dim.hdf5
     distributed: False
     batch_size: 256
-    discount: 0.99
   feedback_class: PairwiseComparisonDataset
   feedback_kwargs:
     path: ../datasets/ihlearn/preference_transformer/Can/num100_q50_human_train.npz

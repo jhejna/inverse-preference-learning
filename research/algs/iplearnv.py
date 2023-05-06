@@ -37,6 +37,8 @@ class IPLearnVBase(OffPolicyAlgorithm):
         feedback_sample_multiplier: float = 10,
         feedback_schedule: str = "constant",
         num_uniform_feedback: int = 0,
+        target_clipping: bool = True,
+        done_is_absorbing: bool = False,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
@@ -49,6 +51,8 @@ class IPLearnVBase(OffPolicyAlgorithm):
         self.chi2_replay_weight = chi2_replay_weight
         self.policy_replay_weight = policy_replay_weight
         self.value_replay_weight = value_replay_weight
+        self.target_clipping = target_clipping
+        self.done_is_absorbing = done_is_absorbing
         self.action_range = [
             float(self.processor.action_space.low.min()),
             float(self.processor.action_space.high.max()),
@@ -311,6 +315,13 @@ class IPLearnVBase(OffPolicyAlgorithm):
         with torch.no_grad():
             next_vs = self.network.value(next_obs)
             next_v = torch.mean(next_vs, dim=0, keepdim=True)  # Min trick is not used on value.
+            if self.target_clipping:
+                q_lim = 1.0 / (self.chi2_coeff * (1 - discount))
+                next_v = torch.clamp(next_v, min=-q_lim, max=q_lim)
+            if self.done_is_absorbing:
+                max_q = 1.0 / (self.chi2_coeff * (1 - self.dataset.feedback_dataset.discount))
+                next_v[:, discount == 0] = max_q
+
         reward = qs - discount * next_v
         assert reward.shape[1] == B_total
         E = reward.shape[0]
@@ -328,11 +339,13 @@ class IPLearnVBase(OffPolicyAlgorithm):
         # Compute the Chi2 Loss over EVERYTHING, including replay data
         if self.chi2_replay_weight is not None and B_r > 0:
             # This tries to balance the loss over data points.
-            chi2_loss_fb = 1 / (8 * self.chi2_coeff) * (torch.square(r1).mean() + torch.square(r2).mean())
-            chi2_loss_replay = 1 / (4 * self.chi2_coeff) * torch.square(rr).mean()
+            chi2_loss_fb = self.chi2_coeff * 0.5 * (torch.square(r1).mean() + torch.square(r2).mean())
+            chi2_loss_replay = self.chi2_coeff * torch.square(rr).mean()
             chi2_loss = (1 - self.chi2_replay_weight) * chi2_loss_fb + self.chi2_replay_weight * chi2_loss_replay
         else:
-            chi2_loss = 1 / (4 * self.chi2_coeff) * (reward**2).mean()  # Otherwise compute over all
+            # default is 0.5
+            # 1 / (4 * 0.5) = 1 / 2  c = 0.5 --> reward is bounded on [-2, 2]
+            chi2_loss = self.chi2_coeff * (reward**2).mean()  # Otherwise compute over all
 
         self.optim["critic"].zero_grad(set_to_none=True)
         (q_loss + chi2_loss).backward()
@@ -404,13 +417,11 @@ class IPLearnVAWAC(IPLearnVBase):
         beta: float = 0.33,
         clip_score: float = 100.0,
         max_feedback: int = 0,  # Default to fully offline
-        sample_value: bool = True,
         **kwargs,
     ):
         super().__init__(*args, target_freq=target_freq, max_feedback=max_feedback, **kwargs)
         self.beta = beta
         self.clip_score = clip_score
-        self.sample_value = sample_value
 
     def _compute_actor_loss(self, obs, action, target_q):
         dist = self.network.actor(obs)

@@ -72,6 +72,11 @@ class PairwiseComparisonDataset(torch.utils.data.IterableDataset):
         storage += get_buffer_bytes(self.label_buffer)
         print("[PairwiseComparisonDataset] allocated {:.2f} GB".format(storage / 1024**3))
 
+        # Clip everything
+        lim = 1 - 1e-5
+        self.action_1_buffer = np.clip(self.action_1_buffer, a_min=-lim, a_max=lim)
+        self.action_2_buffer = np.clip(self.action_2_buffer, a_min=-lim, a_max=lim)
+
     def add(self, queries: Dict, labels: np.ndarray):
         assert self._capacity is not None, "Can only add to non-static buffers."
         assert (

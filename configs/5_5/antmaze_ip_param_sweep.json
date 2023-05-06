@@ -1,0 +1,17 @@
+{
+    "base": "configs/offline_antmaze/iplearnv.yaml",
+    "paired_keys": [
+        ["eval_env", "dataset_kwargs.replay_kwargs.name", "dataset_kwargs.feedback_kwargs.path"]
+    ],
+    "eval_env": ["antmaze-large-play-v2", "antmaze-medium-diverse-v2"],
+    "dataset_kwargs.replay_kwargs.name": ["antmaze-large-play-v2", "antmaze-medium-diverse-v2"],
+    "dataset_kwargs.feedback_kwargs.path": [
+        "../datasets/ihlearn/preference_transformer/antmaze-large-play-v2/num1000_human_train.npz",
+        "../datasets/ihlearn/preference_transformer/antmaze-medium-diverse-v2/num1000_human_train.npz"
+    ],
+    "schedule": [null],
+    "alg_kwargs.target_clipping": [true, false],
+    "dataset_kwargs.feedback_kwargs.subsample_size": [80],
+    "alg_kwargs.chi2_coeff": [0.5, 2, 0.125],
+    "seed": [1]
+}
