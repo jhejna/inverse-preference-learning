@@ -10,8 +10,7 @@ alg_kwargs:
   # Configure offline steps. These aren't needed, but good to set.
   offline_steps: -1
   random_steps: 0
-  target_clipping: False
-  done_is_absorbing: False
+  target_clipping: True
 
 optim: Adam
 optim_kwargs:
@@ -56,11 +55,7 @@ dataset_kwargs:
     subsample_size: 64
   discount: 0.99
 
-schedule:
-  actor: ["import", "torch.optim.lr_scheduler", "CosineAnnealingLR"]
-schedule_kwargs:
-  actor:
-    T_max: 1000000
+schedule: null
 
 processor: null
 

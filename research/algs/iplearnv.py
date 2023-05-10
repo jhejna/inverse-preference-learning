@@ -38,7 +38,6 @@ class IPLearnVBase(OffPolicyAlgorithm):
         feedback_schedule: str = "constant",
         num_uniform_feedback: int = 0,
         target_clipping: bool = True,
-        done_is_absorbing: bool = False,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
@@ -52,7 +51,6 @@ class IPLearnVBase(OffPolicyAlgorithm):
         self.policy_replay_weight = policy_replay_weight
         self.value_replay_weight = value_replay_weight
         self.target_clipping = target_clipping
-        self.done_is_absorbing = done_is_absorbing
         self.action_range = [
             float(self.processor.action_space.low.min()),
             float(self.processor.action_space.high.max()),
@@ -318,9 +316,6 @@ class IPLearnVBase(OffPolicyAlgorithm):
             if self.target_clipping:
                 q_lim = 1.0 / (self.chi2_coeff * (1 - discount))
                 next_v = torch.clamp(next_v, min=-q_lim, max=q_lim)
-            if self.done_is_absorbing:
-                max_q = 1.0 / (self.chi2_coeff * (1 - self.dataset.feedback_dataset.discount))
-                next_v[:, discount == 0] = max_q
 
         reward = qs - discount * next_v
         assert reward.shape[1] == B_total

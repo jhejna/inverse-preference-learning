@@ -23,7 +23,8 @@
         64,
         64
     ],
-    "alg_kwargs.chi2_coeff": [0.5, 2, 0.125],
+    "alg_kwargs.chi2_coeff": [2, 4],
+    "optim_kwargs.lr": [0.0003, 0.001],
     "alg_kwargs.target_clipping": [true, false],
     "schedule": [null],
     "seed": [1]

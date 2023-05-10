@@ -2,7 +2,7 @@ alg: IPLearnVAWAC
 alg_kwargs:
   tau: 0.005
   beta: 2.0
-  chi2_coeff: 0.5
+  chi2_coeff: 4.0
   expectile: 0.7
   chi2_replay_weight: 0.5
   policy_replay_weight: 0.5
@@ -11,7 +11,6 @@ alg_kwargs:
   offline_steps: -1
   random_steps: 0
   target_clipping: True
-  done_is_absorbing: False
 
 optim: Adam
 optim_kwargs:
@@ -58,11 +57,7 @@ dataset_kwargs:
 
 processor: null
 
-schedule:
-  actor: ["import", "torch.optim.lr_scheduler", "CosineAnnealingLR"]
-schedule_kwargs:
-  actor:
-    T_max: 1000000
+schedule: null
 
 trainer_kwargs: # Arguments given to Algorithm.train
   total_steps: 1000000 # The total number of steps to train
