@@ -1,0 +1,28 @@
+{
+    "base": "configs/offline_robomimic/pref_iql.yaml",
+    "paired_keys": [
+        ["eval_env_kwargs.path", "dataset_kwargs.replay_kwargs.path", "dataset_kwargs.feedback_kwargs.path", "dataset_kwargs.feedback_kwargs.segment_size", "dataset_kwargs.feedback_kwargs.subsample_size"]
+    ],
+    "eval_env_kwargs.path": [
+        "/iliad/u/jhejna/dependencies/robomimic/datasets/lift/mh/low_dim.hdf5",
+        "/iliad/u/jhejna/dependencies/robomimic/datasets/can/mh/low_dim.hdf5"
+    ],
+    "dataset_kwargs.replay_kwargs.path": [
+        "/iliad/u/jhejna/dependencies/robomimic/datasets/lift/mh/low_dim.hdf5",
+        "/iliad/u/jhejna/dependencies/robomimic/datasets/can/mh/low_dim.hdf5"
+    ],
+    "dataset_kwargs.feedback_kwargs.path": [
+        "../datasets/ihlearn/preference_transformer/Lift/num500_q100_human_train.npz",
+        "../datasets/ihlearn/preference_transformer/Can/num500_q100_human_train.npz"
+    ],
+    "dataset_kwargs.feedback_kwargs.segment_size": [
+        100,
+        100
+    ],
+    "dataset_kwargs.feedback_kwargs.subsample_size": [
+        64,
+        64
+    ],
+    "seed": [1, 2, 3, 4],
+    "alg_kwargs.chi2_coeff": [0.25, 1, 4]
+}

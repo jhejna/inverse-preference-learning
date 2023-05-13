@@ -1,7 +1,7 @@
 alg: IPLearnVAWAC
 alg_kwargs:
   tau: 0.005
-  beta: 0.33
+  beta: 0.3333
   chi2_coeff: 0.5
   expectile: 0.7
   chi2_replay_weight: 0.5

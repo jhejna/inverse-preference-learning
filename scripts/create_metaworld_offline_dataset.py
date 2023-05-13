@@ -79,11 +79,11 @@ if __name__ == "__main__":
     # Only execute this code if this script is called
     parser = argparse.ArgumentParser()
     parser.add_argument("--env", type=str, required=True, help="A Metaworld task name, like drawer-open-v2")
-    parser.add_argument("--cross-env-ep", type=int, default=5)
-    parser.add_argument("--within-env-ep", type=int, default=5)
-    parser.add_argument("--expert-ep", type=int, default=5)
-    parser.add_argument("--random-ep", type=int, default=5)
-    parser.add_argument("--epsilon", type=float, default=0.25, help="magnitude of gaussian noise.")
+    parser.add_argument("--cross-env-ep", type=int, default=100)
+    parser.add_argument("--within-env-ep", type=int, default=100)
+    parser.add_argument("--expert-ep", type=int, default=100)
+    parser.add_argument("--random-ep", type=int, default=100)
+    parser.add_argument("--epsilon", type=float, default=1.0, help="magnitude of gaussian noise.")
     parser.add_argument("--path", "-p", type=str, required=True, help="output path")
 
     args = parser.parse_args()

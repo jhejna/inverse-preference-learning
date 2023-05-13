@@ -117,7 +117,7 @@ def create_plot(
             continue
         elif LOG_FILE_NAME not in os.listdir(path):
             # If we have multiple seeds in the same directory, add them to a list.
-            run_paths = [os.path.join(path, run) for run in os.listdir(path)]
+            run_paths = [os.path.join(path, run) for run in os.listdir(path) if "seed" in run]
         else:
             run_paths = [path]
         plot_run(run_paths, label, ax=ax, color=color_map[label], **kwargs)

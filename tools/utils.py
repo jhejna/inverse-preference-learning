@@ -19,8 +19,8 @@ DEFAULT_ENTRY_POINT = "scripts/train.py"
 DEFAULT_REQUIRED_ARGS = ["path", "config"]
 
 # Specifies which config values will split experiments into folders
-# by default this is just the environment.
-FOLDER_KEYS = ["env"]
+# by default this is just the environment and eval environment
+FOLDER_KEYS = ["env", "eval_env"]
 
 
 def get_parser() -> argparse.ArgumentParser:

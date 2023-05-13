@@ -62,7 +62,11 @@ class PairwiseComparisonDataset(torch.utils.data.IterableDataset):
                 assert path is not None, "If capacity is not given, must have path to load from"
                 with open(path, "rb") as f:
                     data = np.load(f)
-                    data = utils.nest_dict(data)
+                dataset_size = data["label"].shape[0]
+                if dataset_size > self.capacity:
+                    # Trim the dataset down
+                    data = utils.get_from_batch(data, 0, self.capacity)
+                data = utils.nest_dict(data)
                 self.add(data, data["label"])  # Add to the buffer via the add method!
 
         # Print the size of the allocation.

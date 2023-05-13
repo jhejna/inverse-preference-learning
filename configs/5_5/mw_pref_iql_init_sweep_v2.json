@@ -1,0 +1,20 @@
+{
+    "base": "configs/offline_metaworld/pref_iql.yaml",
+    "paired_keys": [
+        ["eval_env", "dataset_kwargs.feedback_kwargs.path"]
+    ],
+    "eval_env": [
+        "mw_door-close-v2",
+        "mw_button-press-v2",
+        "mw_drawer-open-v2",
+        "mw_sweep-into-v2"
+    ],
+    "dataset_kwargs.feedback_kwargs.path": [
+        "../datasets/ihlearn/metaworld_fb/door-close_v2_500.npz",
+        "../datasets/ihlearn/metaworld_fb/button-press_v2_500.npz",
+        "../datasets/ihlearn/metaworld_fb/drawer-open_v2_1000.npz",
+        "../datasets/ihlearn/metaworld_fb/sweep-into_v2_1000.npz"
+    ],
+    "alg_kwargs.reward_steps": [10000],
+    "seed": [1, 2]
+}
