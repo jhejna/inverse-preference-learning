@@ -1,9 +1,0 @@
-{
-    "base": "configs/offline_antmaze/iql.yaml",
-    "paired_keys": [
-        ["eval_env", "dataset_kwargs.name"]
-    ],
-    "eval_env": ["antmaze-medium-play-v2", "antmaze-medium-diverse-v2", "antmaze-large-play-v2", "antmaze-large-diverse-v2"],
-    "dataset_kwargs.name": ["antmaze-medium-play-v2", "antmaze-medium-diverse-v2", "antmaze-large-play-v2", "antmaze-large-diverse-v2"],
-    "seed": [1, 2]
-}

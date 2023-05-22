@@ -1,6 +1,6 @@
-name: ih-learn
+name: ipl
 channels:
-  - pytorch-nightly
+  - pytorch
   - nvidia
   - defaults
 dependencies:

@@ -1,6 +1,6 @@
-name: ih-learn
+name: ipl
 channels:
-  - pytorch-nightly
+  - pytorch
   - default
 dependencies:
   - python=3.10

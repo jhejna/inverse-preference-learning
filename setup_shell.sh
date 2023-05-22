@@ -1,7 +1,7 @@
 # Make sure we have the conda environment set up.
-CONDA_PATH=/iliad/u/jhejna/miniconda3/bin/activate
-ENV_NAME=ih-learn
-REPO_PATH=/iliad/u/jhejna/ih-learn
+CONDA_PATH=~/miniconda3/bin/activate
+ENV_NAME=ipl
+REPO_PATH=path/to/repository
 USE_MUJOCO_PY=true
 WANDB_API_KEY="" # If you want to use wandb, set this to your API key.
 
@@ -42,4 +42,5 @@ else
 fi
 
 export D4RL_SUPPRESS_IMPORT_ERROR=1
-export D4RL_DATASET_DIR="/iliad/u/jhejna/datasets/d4rl"
+# If you want to use a different location for D4RL, set this flag:
+# export D4RL_DATASET_DIR="path/to/d4rl"

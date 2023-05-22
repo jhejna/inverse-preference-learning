@@ -1,5 +1,0 @@
-{
-    "base": "configs/online_metaworld/sac.yaml",
-    "env": ["mw_button-press-v2", "mw_drawer-open-v2"],
-    "seed": [1, 2]
-}

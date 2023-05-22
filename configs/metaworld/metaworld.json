@@ -1,0 +1,27 @@
+{
+    "base": ["configs/offline_metaworld/iplearnv.yaml", "configs/offline_metaworld/pref_iql.yaml"],
+    "paired_keys": [
+        ["eval_env", "dataset_kwargs.feedback_kwargs.path"]
+    ],
+    "eval_env": [
+        "mw_button-press-v2",
+        "mw_drawer-open-v2",
+        "mw_sweep-into-v2",
+        "mw_plate-slide-v2",
+        "mw_assembly-v2"
+    ],
+    "dataset_kwargs.feedback_kwargs.path": [
+        "datasets/metaworld/button-press_10000.npz",
+        "datasets/metaworld/drawer-open_10000.npz",
+        "datasets/metaworld/sweep-into_10000.npz",
+        "datasets/metaworld/plate-slide_10000.npz",
+        "datasets/metaworld/assembly_10000.npz"
+    ],
+    "dataset_kwargs.feedback_kwargs.capacity": [
+        500,
+        1000,
+        2000,
+        4000
+    ],
+    "seed": [1, 2, 3, 4, 5]
+}
