@@ -1,6 +1,8 @@
 # Inverse Prefrence Learning: Preference-based RL without a Reward Function
 
-Code for *Inverse Prefrence Learning: Preference-based RL without a Reward Function* by REDACTED.
+Code for [*Inverse Prefrence Learning: Preference-based RL without a Reward Function*](https://arxiv.org/pdf/2305.15363.pdf) by Joey Hejna and Dorsa Sadigh.
+
+This repository is based on a frozen version of [research-lightning](https://github.com/jhejna/research-lightning). For detailed information about how to use the repository, see the research lightning repository.
 
 ## Installation
 
